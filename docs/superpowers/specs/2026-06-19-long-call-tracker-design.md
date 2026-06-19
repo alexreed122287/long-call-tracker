@@ -94,7 +94,7 @@ long-call-tracker/
 ### `config.json`
 ```json
 {
-  "accountBalance": 25000,
+  "accountBalance": 1000000,
   "riskPct": 0.05,
   "atrStopMult": 1.0,
   "atrEmergencyMult": 3.0,
@@ -142,8 +142,8 @@ The campaign is the unit the scorecard counts as one "trade."
   "entryTimeCST": "09:45",
   "entryStockPrice": 210.50,        // FMP at that moment; editable override
   "atrAtEntry": 4.10,               // ATR(14) as of entry date (FIXED for life)
-  "riskBudget": 1250.00,            // = riskPct * accountBalance at entry
-  "contracts": 3,
+  "riskBudget": 50000.00,           // = riskPct * accountBalance at entry (5% of 1,000,000)
+  "contracts": 169,                 // floor(50000 / (0.72 delta * 4.10 ATR * 100))
   "stopLevel": 206.40,              // entry - 1*ATR  (price anchored at entry)
   "emergencyLevel": 198.20,         // entry - 3*ATR
   "rollUpStepsTaken": 0,            // k: number of +1 ATR roll-ups done
@@ -169,7 +169,7 @@ The campaign is the unit the scorecard counts as one "trade."
     {"ts":"2026-07-02T16:00Z","campaign":"AAPL-...","type":"close","detail":"stop"}
   ],
   "equity": [
-    {"date":"2026-06-19","realized":0,"unrealized":120,"equity":25120}
+    {"date":"2026-06-19","realized":0,"unrealized":120,"equity":1000120}
   ]
 }
 ```
