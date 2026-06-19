@@ -1,0 +1,198 @@
+/* Run: node test.js */
+var E = require('./engine.js');
+var pass = 0, fail = 0;
+
+function eq(actual, expected, msg) {
+  var a = JSON.stringify(actual), b = JSON.stringify(expected);
+  if (a === b) { pass++; }
+  else { fail++; console.error('FAIL: ' + msg + '\n  expected ' + b + '\n  got      ' + a); }
+}
+function approx(actual, expected, tol, msg) {
+  if (typeof actual === 'number' && Math.abs(actual - expected) <= tol) { pass++; }
+  else { fail++; console.error('FAIL: ' + msg + '\n  expected ~' + expected + ' got ' + actual); }
+}
+function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAIL: ' + msg); } }
+
+// computeATR
+(function () {
+  var bars = [
+    { h: 10, l: 9, c: 9.5 },
+    { h: 11, l: 9.5, c: 10.5 },
+    { h: 12, l: 10, c: 11.5 },
+    { h: 11.5, l: 10.5, c: 11 }
+  ];
+  approx(E.computeATR(bars, 2), 1.375, 1e-9, 'computeATR wilder period 2');
+  ok(isNaN(E.computeATR([{ h: 1, l: 0, c: 0.5 }], 14)), 'computeATR NaN when too few bars');
+})();
+
+// atrLevels
+(function () {
+  var cfg = { atrStopMult: 1.0, atrEmergencyMult: 3.0 };
+  var lv = E.atrLevels(210.50, 4.10, cfg);
+  approx(lv.stop, 206.40, 1e-9, 'atrLevels stop = entry - 1 ATR');
+  approx(lv.emergency, 198.20, 1e-9, 'atrLevels emergency = entry - 3 ATR');
+  var d = E.atrLevels(100, 2);
+  approx(d.stop, 98, 1e-9, 'atrLevels default stop mult 1');
+  approx(d.emergency, 94, 1e-9, 'atrLevels default emergency mult 3');
+})();
+
+// liquidityOK
+(function () {
+  ok(E.liquidityOK({ oi: 600, bid: 9.3, ask: 9.5 }, 500, 0.10) === true, 'liquidityOK pass tight spread');
+  ok(E.liquidityOK({ oi: 100, bid: 9.3, ask: 9.5 }, 500, 0.10) === false, 'liquidityOK fail low OI');
+  ok(E.liquidityOK({ oi: 600, bid: 8, ask: 10 }, 500, 0.10) === false, 'liquidityOK fail wide spread');
+  ok(E.liquidityOK({ oi: 600, bid: 0, ask: 9.5 }, 500, 0.10) === false, 'liquidityOK fail no bid');
+  ok(E.liquidityOK(null, 500, 0.10) === false, 'liquidityOK fail null contract');
+})();
+
+// sizePosition
+(function () {
+  var r = E.sizePosition({ budget: 50000, delta: 0.72, atr: 4.10, entryMark: 9.40 });
+  approx(r.lossPerContract, 295.2, 1e-6, 'sizePosition loss per contract = delta*atr*100');
+  eq(r.contracts, 169, 'sizePosition contracts = floor(50000/295.2)');
+  approx(r.premium, 158860, 1e-6, 'sizePosition premium = mark*100*contracts');
+  eq(r.riskBudget, 50000, 'sizePosition echoes risk budget');
+  eq(E.sizePosition({ budget: 100, delta: 0.9, atr: 5, entryMark: 1 }).contracts, 1, 'sizePosition floors to min 1 contract');
+})();
+
+// isLastHour
+(function () {
+  var cfg = { timing: { lastHourStartET: '15:00', marketCloseET: '16:00' } };
+  ok(E.isLastHour(15 * 60, cfg) === true, 'isLastHour true at 15:00');
+  ok(E.isLastHour(15 * 60 + 59, cfg) === true, 'isLastHour true at 15:59');
+  ok(E.isLastHour(16 * 60, cfg) === false, 'isLastHour false at 16:00');
+  ok(E.isLastHour(14 * 60 + 59, cfg) === false, 'isLastHour false at 14:59');
+  ok(E.isLastHour(15 * 60) === true, 'isLastHour uses 15:00-16:00 defaults');
+})();
+
+// pickEntryContract
+(function () {
+  var chain = [
+    { strike: 200, delta: 0.85, oi: 600, bid: 13.0, ask: 13.2 },
+    { strike: 205, delta: 0.72, oi: 600, bid: 9.3, ask: 9.5 },
+    { strike: 210, delta: 0.60, oi: 600, bid: 6.0, ask: 6.2 },
+    { strike: 207, delta: 0.68, oi: 100, bid: 7.0, ask: 7.2 }
+  ];
+  var c = E.pickEntryContract(chain, { targetDelta: 0.70, minOI: 500, maxSpreadPct: 0.10 });
+  eq(c.strike, 205, 'pickEntryContract picks closest delta to 0.70 among liquid');
+  ok(E.pickEntryContract([], { targetDelta: 0.7, minOI: 500, maxSpreadPct: 0.1 }) === null, 'pickEntryContract null on empty chain');
+})();
+
+// pickRollContract
+(function () {
+  var cands = [
+    { strike: 215, expiration: '2026-08-21', dte: 35, delta: 0.72, oi: 800, bid: 8.0, ask: 8.2 },
+    { strike: 220, expiration: '2026-08-21', dte: 35, delta: 0.66, oi: 800, bid: 6.0, ask: 6.2 },
+    { strike: 215, expiration: '2026-09-18', dte: 63, delta: 0.78, oi: 800, bid: 9.0, ask: 9.2 },
+    { strike: 230, expiration: '2026-08-21', dte: 35, delta: 0.50, oi: 800, bid: 3.0, ask: 3.2 }
+  ];
+  var up = E.pickRollContract(cands, { mode: 'up', deltaBand: [0.65, 0.85], deltaTarget: 0.75, afterDTE: 20, minOI: 500, maxSpreadPct: 0.10 });
+  eq([up.expiration, up.strike], ['2026-08-21', 215], 'roll up: nearest further expiration, delta closest to 0.75 in band');
+
+  var time = E.pickRollContract(cands, { mode: 'time', minDelta: 0.60, minDTE: 30, deltaTarget: 0.70, afterDTE: 7, minOI: 500, maxSpreadPct: 0.10 });
+  eq([time.expiration, time.strike], ['2026-08-21', 215], 'roll time: nearest exp >=30 DTE, delta closest to 0.70 among >=0.60');
+
+  var none = E.pickRollContract([{ strike: 215, expiration: '2026-08-21', dte: 35, delta: 0.40, oi: 800, bid: 8, ask: 8.2 }],
+    { mode: 'time', minDelta: 0.60, minDTE: 30, deltaTarget: 0.70, afterDTE: 7, minOI: 500, maxSpreadPct: 0.10 });
+  ok(none === null, 'roll returns null when nothing qualifies');
+})();
+
+// evaluateExits
+(function () {
+  var cfg = {
+    atrStopMult: 1, atrEmergencyMult: 3, dteRollTrigger: 7,
+    timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
+    rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75,
+    liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10,
+    timing: { lastHourStartET: '15:00', marketCloseET: '16:00' }
+  };
+  var camp = { entryStockPrice: 210.50, atrAtEntry: 4.10, rollUpStepsTaken: 0 };
+  var rollCands = [{ strike: 215, expiration: '2026-08-21', dte: 70, delta: 0.74, oi: 800, bid: 8, ask: 8.1 }];
+  var noon = 12 * 60, last = 15 * 60 + 30;
+
+  eq(E.evaluateExits(camp, { stockPrice: 197, etMinutes: noon, spyRegimeCross: false, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'close', reason: 'emergency' }, 'emergency closes intraday at <= -3 ATR');
+
+  eq(E.evaluateExits(camp, { stockPrice: 205, etMinutes: noon, spyRegimeCross: false, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'none' }, 'stop suppressed outside last hour');
+
+  eq(E.evaluateExits(camp, { stockPrice: 205, etMinutes: last, spyRegimeCross: false, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'close', reason: 'stop' }, 'stop closes in last hour at <= -1 ATR');
+
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: noon, spyRegimeCross: true, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'none' }, 'regime suppressed outside last hour');
+
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: last, spyRegimeCross: true, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'close', reason: 'regime' }, 'regime closes all in last hour');
+
+  var tr = E.evaluateExits(camp, { stockPrice: 211, etMinutes: last, spyRegimeCross: false, currentDTE: 5, rollCandidates: rollCands }, cfg);
+  eq([tr.type, tr.reason, tr.contract.strike], ['roll', 'dte_roll', 215], 'time-roll rolls at <=7 DTE when liquid');
+
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: last, spyRegimeCross: false, currentDTE: 5, rollCandidates: [] }, cfg),
+     { type: 'close', reason: 'dte_close' }, 'time-roll closes when illiquid');
+
+  var ru = E.evaluateExits(camp, { stockPrice: 214.7, etMinutes: last, spyRegimeCross: false, currentDTE: 40, rollCandidates: rollCands }, cfg);
+  eq([ru.type, ru.reason, ru.newStep, ru.contract.strike], ['roll', 'roll_up', 1, 215], 'winner roll-up at +1 ATR');
+
+  eq(E.evaluateExits(camp, { stockPrice: 214.7, etMinutes: noon, spyRegimeCross: false, currentDTE: 40, rollCandidates: rollCands }, cfg),
+     { type: 'none' }, 'winner roll-up suppressed outside last hour');
+
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: last, spyRegimeCross: false, currentDTE: 40, rollCandidates: rollCands }, cfg),
+     { type: 'none' }, 'no exit when nothing triggers');
+})();
+
+// computeCampaignPnl + applyAction
+(function () {
+  var base = {
+    id: 'AAPL-1', ticker: 'AAPL', status: 'open', contracts: 10,
+    entryStockPrice: 210.50, atrAtEntry: 4.10, rollUpStepsTaken: 0,
+    legs: [{ strike: 205, expiration: '2026-07-18', deltaAtEntry: 0.72, entryMark: 9.40,
+             exitMark: null, exitReason: null, realizedPnl: null, openedOn: '2026-06-19', closedOn: null }]
+  };
+
+  approx(E.computeCampaignPnl(base, 11.40), 2000, 1e-6, 'computeCampaignPnl open uses current mark');
+
+  var closed = E.applyAction(base, { type: 'close', reason: 'stop' }, { currentMark: 7.40, today: '2026-07-02' });
+  eq(closed.campaign.status, 'closed', 'applyAction close sets status');
+  eq(closed.campaign.exitReason, 'stop', 'applyAction close sets exitReason');
+  approx(closed.campaign.netPnl, -2000, 1e-6, 'applyAction close netPnl = (7.40-9.40)*100*10');
+  approx(closed.campaign.legs[0].realizedPnl, -2000, 1e-6, 'applyAction close realizes leg');
+  eq(base.status, 'open', 'applyAction does not mutate input campaign');
+
+  var rolled = E.applyAction(base, {
+    type: 'roll', reason: 'roll_up', newStep: 1,
+    contract: { strike: 215, expiration: '2026-08-21', delta: 0.74, mark: 8.00 }
+  }, { currentMark: 12.40, today: '2026-06-26' });
+  approx(rolled.campaign.legs[0].realizedPnl, 3000, 1e-6, 'roll realizes closed leg');
+  eq(rolled.campaign.legs.length, 2, 'roll opens a new leg');
+  eq(rolled.campaign.legs[1].entryMark, 8.00, 'roll new leg uses contract mark');
+  eq(rolled.campaign.rollUpStepsTaken, 1, 'roll_up increments step');
+  eq(rolled.campaign.status, 'open', 'roll keeps campaign open');
+  approx(E.computeCampaignPnl(rolled.campaign, 9.00), 4000, 1e-6, 'computeCampaignPnl sums realized + open leg');
+})();
+
+// scorecard
+(function () {
+  var camps = [
+    { status: 'closed', netPnl: 2000, riskBudget: 1000, exitReason: 'roll_up_chain', legs: [{}, {}] },
+    { status: 'closed', netPnl: -1000, riskBudget: 1000, exitReason: 'stop', legs: [{}] },
+    { status: 'closed', netPnl: 500, riskBudget: 1000, exitReason: 'dte_close', legs: [{}] },
+    { status: 'closed', netPnl: -1500, riskBudget: 1000, exitReason: 'stop', legs: [{}] }
+  ];
+  var s = E.scorecard(camps);
+  eq(s.trades, 4, 'scorecard trade count');
+  approx(s.winRate, 0.5, 1e-9, 'scorecard win rate 2/4');
+  approx(s.profitFactor, 1.0, 1e-9, 'scorecard profit factor 2500/2500');
+  approx(s.totalPnl, 0, 1e-9, 'scorecard total pnl');
+  approx(s.expectancyR, 0, 1e-9, 'scorecard expectancy R');
+  approx(s.maxDrawdown, 2000, 1e-9, 'scorecard max drawdown');
+  approx(s.avgWin, 1250, 1e-9, 'scorecard avg win (2000+500)/2');
+  approx(s.avgLoss, -1250, 1e-9, 'scorecard avg loss (-1000-1500)/2');
+  approx(s.payoffRatio, 1.0, 1e-9, 'scorecard payoff ratio');
+  approx(s.avgRolls, 0.25, 1e-9, 'scorecard avg rolls (one campaign has 2 legs)');
+  eq(s.exitReasonBreakdown.stop, 2, 'scorecard exit-reason breakdown counts stops');
+  approx(s.sortino, 0 / 0.9013878, 1e-6, 'scorecard sortino = meanR / downsideDev');
+})();
+
+console.log('\n' + pass + ' passed, ' + fail + ' failed');
+process.exit(fail ? 1 : 0);

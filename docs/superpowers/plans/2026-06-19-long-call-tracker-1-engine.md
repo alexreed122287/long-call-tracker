@@ -514,7 +514,7 @@ Insert before the summary line:
 // pickRollContract
 (function () {
   var cands = [
-    { strike: 215, expiration: '2026-08-21', dte: 35, delta: 0.74, oi: 800, bid: 8.0, ask: 8.2 },
+    { strike: 215, expiration: '2026-08-21', dte: 35, delta: 0.72, oi: 800, bid: 8.0, ask: 8.2 },
     { strike: 220, expiration: '2026-08-21', dte: 35, delta: 0.66, oi: 800, bid: 6.0, ask: 6.2 },
     { strike: 215, expiration: '2026-09-18', dte: 63, delta: 0.78, oi: 800, bid: 9.0, ask: 9.2 },
     { strike: 230, expiration: '2026-08-21', dte: 35, delta: 0.50, oi: 800, bid: 3.0, ask: 3.2 } // out of band
@@ -604,7 +604,7 @@ Insert before the summary line:
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' }
   };
   var camp = { entryStockPrice: 210.50, atrAtEntry: 4.10, rollUpStepsTaken: 0 };
-  var rollCands = [{ strike: 215, expiration: '2026-08-21', dte: 35, delta: 0.74, oi: 800, bid: 8, ask: 8.1 }];
+  var rollCands = [{ strike: 215, expiration: '2026-08-21', dte: 70, delta: 0.74, oi: 800, bid: 8, ask: 8.1 }];
   var noon = 12 * 60, last = 15 * 60 + 30;
 
   // emergency fires intraday (any time)

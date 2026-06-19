@@ -1,0 +1,17 @@
+{
+  "accountBalance": 1000000,
+  "riskPct": 0.05,
+  "atrStopMult": 1.0,
+  "atrEmergencyMult": 3.0,
+  "atrRollUpStep": 1.0,
+  "rollUpDeltaBand": [0.65, 0.85],
+  "rollUpDeltaTarget": 0.75,
+  "dteRollTrigger": 7,
+  "timeRollMinDelta": 0.60,
+  "timeRollMinDTE": 30,
+  "timeRollDeltaTarget": 0.70,
+  "liquidityMinOI": 500,
+  "liquidityMaxSpreadPct": 0.10,
+  "timing": { "lastHourStartET": "15:00", "marketCloseET": "16:00" },
+  "providers": { "optionsGreeks": "tradier", "equityPriceAtr": "fmp", "spyEma": "fmp" }
+}
