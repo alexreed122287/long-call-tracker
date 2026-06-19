@@ -198,16 +198,26 @@ The campaign is the unit the scorecard counts as one "trade."
 
 ## 8. Position Sizing (`sizePosition`) — risk-budget model
 
-Reuses the `position-sizer` math.
+Reuses the `position-sizer` math. **The 5% is what you lose if the trade reaches
+its planned exit (−1 ATR), NOT the cash you put up for the contracts.** You're
+risking 5% because −1 ATR is the planned stop.
 
-- Risk budget `B = riskPct * accountBalance` (default 5%).
-- Stop distance in the underlying = `1 * ATR`.
-- Delta-adjusted contracts: `contracts = floor( B / (delta * (1*ATR) * 100) )`,
-  minimum 1.
-- Premium paid = `entryMark * 100 * contracts`.
-- **R unit:** `R = B`. Trade return in R = `campaignNetPnl / B`. By construction a
-  clean −1 ATR stop ≈ −1R (delta-adjusted; ignores gamma/theta/IV — a planning
-  estimate, same caveat as position-sizer).
+- **Risk budget** `B = riskPct * accountBalance` — the dollars you intend to lose
+  at the planned stop. Default 5% of $1,000,000 = **$50,000**.
+- **Planned exit distance** = entry stock price down to `entry − 1*ATR` (the stop).
+- **Estimated loss per contract at that stop** = `delta * (1*ATR) * 100` — the
+  option's delta-approximated drop when the stock falls 1 ATR. This is the
+  "distance from entry to 1 ATR below," expressed in option dollars.
+- **Contracts** = `floor( B / (delta * (1*ATR) * 100) )`, min 1 — sized so the
+  total estimated loss at the −1 ATR stop equals `B`. The `delta` term is what
+  makes "loss at the stop = 5%" true; dropping it would under-risk the position.
+- **Premium / capital deployed** = `entryMark * 100 * contracts` — reported for
+  reference only; **not** the risk figure. (Your true *max* loss is the full
+  premium, but the strategy plans to exit at −1 ATR long before that.)
+- **R unit:** `R = B`. Trade return in R = `campaignNetPnl / B`, so a clean −1 ATR
+  stop ≈ −1R. The loss estimate ignores gamma/theta/IV; a gap straight through the
+  stop (or the −3 ATR emergency) can lose more than `B` — that tail is real and is
+  reported in the scorecard, not hidden.
 
 ## 9. Exit Engine (`evaluateExits`)
 
