@@ -267,6 +267,29 @@
     exps.forEach(function (d) { var diff = Math.abs(E.dteBetween(today, d) - targetDte); if (diff < bd) { bd = diff; best = d; } });
     return best;
   }
+  function selectedTargetDte() {
+    var el = $('w-exp'), v = el && el.value;
+    return v ? E.dteBetween(isoToday(), v) : 45;
+  }
+  function populateExpDropdown(exps, today) {
+    var el = $('w-exp'); if (!el) return;
+    var prev = el.value, def = E.pickDefaultExpiration(exps, today);
+    var sel = (prev && exps.indexOf(prev) >= 0) ? prev : def;
+    el.innerHTML = exps.map(function (d) {
+      return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd, ' + (E.isMonthlyExpiration(d) ? 'M' : 'W') + ')</option>';
+    }).join('');
+  }
+  async function ensureExpirations(force) {
+    var el = $('w-exp'); if (!el) return;
+    if (!force && el.options.length) return;
+    var today = isoToday(), cache = getJSON('lct_exps', null);
+    if (!force && cache && cache.day === today && cache.list && cache.list.length) { populateExpDropdown(cache.list, today); return; }
+    var p; try { p = provider(); } catch (e) { return; }
+    try {
+      var exps = (await p.getExpirations('SPY')).filter(function (d) { return E.dteBetween(today, d) > 0; });
+      if (exps.length) { setJSON('lct_exps', { day: today, list: exps }); populateExpDropdown(exps, today); }
+    } catch (e) { /* leave empty; populated on next refresh */ }
+  }
   function addSymbols(tickers) {
     var w = getWatchlist(), have = {}, added = 0;
     w.forEach(function (it) { have[it.ticker] = 1; });
@@ -296,7 +319,8 @@
     if (!w.length) { $('w-msg').textContent = 'nothing to refresh'; return; }
     var cfg = getConfig(), p;
     try { p = provider(); } catch (e) { $('w-msg').textContent = 'set API keys in Settings'; return; }
-    var dte = parseInt($('w-dte').value, 10) || 45, today = isoToday();
+    await ensureExpirations(false);
+    var dte = selectedTargetDte(), today = isoToday();
     for (var i = 0; i < w.length; i++) {
       var it = w[i];
       $('w-msg').textContent = 'refreshing ' + it.ticker + ' (' + (i + 1) + '/' + w.length + ')...';
@@ -361,7 +385,7 @@
       var today = isoToday();
       var exps = (await p.getExpirations(ticker)).filter(function (d) { return E.dteBetween(today, d) > 0; });
       if (!exps.length) { td.innerHTML = '<span class="err">no expirations</span>'; return; }
-      var dte = parseInt($('w-dte').value, 10) || 45, sel = nearestExp(exps, today, dte);
+      var dte = selectedTargetDte(), sel = nearestExp(exps, today, dte);
       td.innerHTML = '<div class="row" style="align-items:flex-end;margin-bottom:8px"><div class="field"><label>Expiration</label><select class="ic-exp">' +
         exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd)</option>'; }).join('') +
         '</select></div></div><div class="ic-table"></div>';
@@ -516,6 +540,7 @@
   function showTab(name) {
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === name); });
     Array.prototype.forEach.call(document.querySelectorAll('main section'), function (s) { s.classList.toggle('active', s.id === name); });
+    if (name === 'watchlist') ensureExpirations(false);
   }
 
   function init() {
@@ -540,6 +565,7 @@
     $('w-clear').onclick = clearWatchlist;
     loadSettings();
     render();
+    ensureExpirations(false);
     // open-tab tracking: poll every 90s when keys are configured
     setInterval(function () { if (secrets().fmpKey || secrets().tradierLiveToken || secrets().alpacaKey) tick(); }, 90000);
   }

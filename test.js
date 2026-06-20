@@ -217,5 +217,15 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(E.parseTickerList(''), [], 'parseTickerList empty input');
 })();
 
+// isMonthlyExpiration / pickDefaultExpiration
+(function () {
+  ok(E.isMonthlyExpiration('2026-07-17') === true, 'isMonthlyExpiration true for 3rd Friday');
+  ok(E.isMonthlyExpiration('2026-07-24') === false, 'isMonthlyExpiration false for 4th Friday');
+  ok(E.isMonthlyExpiration('2026-07-10') === false, 'isMonthlyExpiration false for 2nd Friday');
+  var exps = ['2026-06-26', '2026-07-17', '2026-07-24', '2026-08-21'];
+  eq(E.pickDefaultExpiration(exps, '2026-06-19'), '2026-07-17', 'pickDefaultExpiration = nearest monthly >7 DTE');
+  eq(E.pickDefaultExpiration(['2026-07-17', '2026-08-21'], '2026-07-15'), '2026-08-21', 'pickDefaultExpiration skips monthly within 7 DTE');
+})();
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

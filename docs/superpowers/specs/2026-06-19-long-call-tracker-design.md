@@ -334,7 +334,9 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs
 - **Watchlist** — daily candidate staging list. Add tickers by **name/symbol
   search** (FMP/Tradier `searchSymbols`) or **bulk paste** (`parseTickerList`).
   **Refresh** enriches each row with last price, daily % change, ATR(14), and the
-  **suggested 0.65–0.85 call** near a target DTE. **Chain** expands the full option
+  **suggested 0.65–0.85 call** near a chosen **target expiration** (a dropdown of
+  all weekly + monthly dates, labeled W/M; defaults to the nearest monthly that is
+  more than 7 DTE out). **Chain** expands the full option
   chain inline (per-expiration, band/liquidity highlighted) for a quick look.
   **Buy** jumps to Positions with the ticker prefilled and the chain auto-loaded.
   Persists in `localStorage`.

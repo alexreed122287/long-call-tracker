@@ -268,6 +268,22 @@
     return Math.round((b - a) / 86400000);
   }
 
+  function isMonthlyExpiration(dateISO) {
+    // Standard equity monthly = 3rd Friday of the month (Friday, day-of-month 15-21).
+    var d = new Date(Date.parse(dateISO + 'T00:00:00Z'));
+    var dom = +dateISO.slice(8, 10);
+    return d.getUTCDay() === 5 && dom >= 15 && dom <= 21;
+  }
+
+  function pickDefaultExpiration(expirations, todayISO) {
+    var future = (expirations || []).filter(function (d) { return dteBetween(todayISO, d) > 0; }).slice().sort();
+    var monthly = future.filter(function (d) { return isMonthlyExpiration(d); }), i;
+    for (i = 0; i < monthly.length; i++) { if (dteBetween(todayISO, monthly[i]) > 7) return monthly[i]; }
+    if (monthly.length) return monthly[0];
+    for (i = 0; i < future.length; i++) { if (dteBetween(todayISO, future[i]) > 7) return future[i]; }
+    return future[0] || null;
+  }
+
   function parseTickerList(text) {
     var raw = ('' + (text || '')).toUpperCase().split(/[^A-Z0-9.\-]+/);
     var seen = {}, out = [], i;
@@ -294,6 +310,8 @@
     regimeBearishCross: regimeBearishCross,
     occSymbol: occSymbol,
     dteBetween: dteBetween,
-    parseTickerList: parseTickerList
+    parseTickerList: parseTickerList,
+    isMonthlyExpiration: isMonthlyExpiration,
+    pickDefaultExpiration: pickDefaultExpiration
   };
 });
