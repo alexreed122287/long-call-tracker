@@ -176,13 +176,17 @@ The campaign is the unit the scorecard counts as one "trade."
 
 ## 6. Entry Workflow
 
-1. Key in **ticker**, **entry date**, **entry time (CST)**, **chosen delta**, **chosen DTE**.
-2. Tool fetches the **stock price at that moment** (FMP 5-min intraday, CST→ET)
-   and **ATR(14) as of the entry date** (FMP daily). Entry price cell is
-   **editable** to type the real fill / override.
-3. Tool selects the **entry contract** (§7) and fetches its delta + mark from
-   `tradier-proxy`.
-4. Tool **sizes** the position (§8) and writes the campaign to `positions.json`.
+1. Key in **ticker**, **entry date**, **entry time (CST)**; click **Load chain**.
+2. Tool fetches the **stock price at that moment** (FMP 5-min intraday, CST→ET),
+   **ATR(14) as of the entry date** (FMP daily), and the **expiration list**
+   (`getExpirations`).
+3. Pick an expiration → the **call chain** loads (strike, delta, bid/ask/mark, OI,
+   spread). Strikes in the **0.65–0.85 band are highlighted** and **illiquid** ones
+   (OI<500 or spread>10%) are dimmed/flagged. You **click the strike** you want —
+   no keying delta/DTE.
+4. Tool **sizes** the position (§8), previews contracts/premium/risk, and offers an
+   **editable entry-premium override** (defaults to the contract mark, for backdated
+   fills). **Add & track** writes the campaign to `positions.json`.
 
 ## 7. Contract Selection (`pickEntryContract`, `pickRollContract`)
 
@@ -329,7 +333,9 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs:
 - **Positions** — table of campaigns: ticker, status, entry, current stock vs
   ATR levels (−1/−3 stop & emergency, +k ATR roll ladder), current leg
   (strike/exp/delta/DTE), contracts, mark, unrealized P&L ($ and R), # rolls,
-  next-trigger hint. Add-trade row at top. Manual "Close now" per row.
+  next-trigger hint. **Add-trade via an option-chain picker** at top (load chain →
+  pick expiration → click a strike, with band/liquidity highlighting). Manual
+  "Close now" per row.
 - **Scorecard** — the §11 metrics + an equity curve and exit-reason breakdown.
 - **Settings** — paper-account balance, risk %, thresholds, **provider selection**
   (Tradier/Alpaca/FMP per data type), and the last-hour window (writes

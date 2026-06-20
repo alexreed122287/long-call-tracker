@@ -32,3 +32,11 @@
 
 ## Self-Review
 - Spec §12 UI (three tabs, no glyphs) ✓; §11 scorecard ✓; §3 PAT sync ✓; open-tab tracking reuses §9 engine logic ✓. DOM glue verified in-browser rather than unit-tested; engine math already covered by Plans 1–2. ✓
+
+## Addendum (chain picker)
+Add-trade was changed from keyed delta/DTE to an **option-chain picker**: Load chain
+→ pick expiration (all expirations, lazy-loaded via new `getExpirations`) → click a
+call strike (table shows strike/Δ/bid/ask/mark/OI/spread; 0.65–0.85 band highlighted,
+illiquid rows dimmed) → sizing preview → Add. New provider method `getExpirations`
+(Tradier/Alpaca; FMP throws) with `parseTradierExpirations` (+4 tracker tests, now 27).
+Browser-verified end-to-end with a stubbed provider. Spec §6/§12 updated.

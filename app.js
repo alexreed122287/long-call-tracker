@@ -49,12 +49,6 @@
     return { dateISO: p.year + '-' + p.month + '-' + p.day, minutes: ((+p.hour) % 24) * 60 + (+p.minute) };
   }
   function cstToEt(hhmm) { var pr = (hhmm || '08:45').split(':'); var m = (+pr[0]) * 60 + (+pr[1]) + 60; return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
-  function nearestExpiration(cands, targetDte) {
-    var byExp = {}; cands.forEach(function (c) { if (byExp[c.expiration] == null) byExp[c.expiration] = c.dte; });
-    var best = null, bd = Infinity;
-    Object.keys(byExp).forEach(function (ex) { var d = Math.abs(byExp[ex] - targetDte); if (d < bd) { bd = d; best = ex; } });
-    return best;
-  }
 
   /* ---------- GitHub contents API ---------- */
   function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
@@ -98,15 +92,16 @@
     } catch (e) { setStatus('push failed: ' + e.message); }
   }
 
-  /* ---------- add trade ---------- */
-  async function addTrade() {
-    var msg = $('t-msg'); msg.className = 'hint'; msg.textContent = 'fetching...';
+  /* ---------- add trade: option-chain picker ---------- */
+  var picker = { entry: null, selected: null };
+
+  async function loadChain() {
+    var msg = $('t-msg'); msg.className = 'hint'; msg.textContent = 'loading chain...';
+    $('chain-panel').style.display = 'none'; $('select-box').style.display = 'none'; picker.selected = null;
     try {
       var cfg = getConfig(), p = provider();
       var ticker = ($('t-ticker').value || '').trim().toUpperCase();
       var date = $('t-date').value || isoToday();
-      var delta = parseFloat($('t-delta').value);
-      var dte = parseInt($('t-dte').value, 10);
       if (!ticker) throw new Error('ticker required');
       var etTime = cstToEt($('t-time').value);
       var stock = await p.getStockPriceAt(ticker, date, etTime);
@@ -114,32 +109,90 @@
       var bars = await p.getDailyBars(ticker, isoMinusDays(date, 40), date);
       var atr = E.computeATR(bars, 14);
       if (!isFinite(atr)) throw new Error('not enough history for ATR');
-      var cands = await p.getOptionCandidates(ticker, date);
-      var exp = nearestExpiration(cands, dte);
-      if (!exp) throw new Error('no option expirations found');
-      var chain = cands.filter(function (c) { return c.expiration === exp; });
-      var contract = E.pickEntryContract(chain, { targetDelta: delta, minOI: cfg.liquidityMinOI, maxSpreadPct: cfg.liquidityMaxSpreadPct });
-      if (!contract) throw new Error('no liquid contract near delta ' + delta);
-      var override = parseFloat($('t-prem').value);
-      var entryMark = isFinite(override) ? override : contract.mark;
-      var budget = cfg.accountBalance * cfg.riskPct;
-      var size = E.sizePosition({ budget: budget, delta: contract.delta, atr: atr, entryMark: entryMark });
-      var camp = {
-        id: ticker + '-' + date + '-' + (getPositions().length + 1),
-        ticker: ticker, status: 'open', entryDate: date, entryTimeCST: $('t-time').value,
-        entryStockPrice: stock.price, atrAtEntry: atr, riskBudget: budget, contracts: size.contracts,
-        stopLevel: stock.price - cfg.atrStopMult * atr, emergencyLevel: stock.price - cfg.atrEmergencyMult * atr,
-        rollUpStepsTaken: 0,
-        legs: [{ strike: contract.strike, expiration: exp, deltaAtEntry: contract.delta, entryMark: entryMark, exitMark: null, exitReason: null, realizedPnl: null, openedOn: date, closedOn: null }],
-        netPnl: null, exitReason: null
-      };
-      var positions = getPositions(); positions.push(camp); setPositions(positions);
-      var history = getHistory(); history.events.push({ campaign: camp.id, type: 'open', detail: ticker + ' ' + contract.strike + 'C ' + exp + ' x' + size.contracts, ts: date }); setHistory(history);
-      msg.className = 'hint'; msg.textContent = 'Added ' + ticker + ' ' + contract.strike + 'C ' + exp + ' x' + size.contracts + ' (ATR ' + fmt2(atr) + ', entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
-      $('t-ticker').value = '';
-      if (gh().pat) pushState();
-      render();
+      var exps = await p.getExpirations(ticker);
+      exps = (exps || []).filter(function (d) { return E.dteBetween(date, d) > 0; });
+      if (!exps.length) throw new Error('no expirations found');
+      picker.entry = { ticker: ticker, date: date, price: stock.price, atr: atr };
+      $('entry-readout').innerHTML = '<strong>' + ticker + '</strong> &middot; entry ' + fmt2(stock.price) +
+        ' &middot; ATR(14) ' + fmt2(atr) + ' &middot; stop ' + fmt2(stock.price - cfg.atrStopMult * atr) +
+        ' / emerg ' + fmt2(stock.price - cfg.atrEmergencyMult * atr);
+      $('t-exp').innerHTML = exps.map(function (d) { return '<option value="' + d + '">' + d + ' (' + E.dteBetween(date, d) + 'd)</option>'; }).join('');
+      $('chain-panel').style.display = 'block';
+      msg.textContent = '';
+      onExpiration();
     } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+  }
+
+  async function onExpiration() {
+    if (!picker.entry) return;
+    var exp = $('t-exp').value;
+    var tb = $('chain-table').querySelector('tbody');
+    tb.innerHTML = ''; $('select-box').style.display = 'none'; picker.selected = null;
+    var empty = $('chain-empty'); empty.style.display = 'block'; empty.textContent = 'loading ' + exp + '...';
+    try {
+      var cfg = getConfig(), p = provider();
+      var chain = (await p.getOptionChain(picker.entry.ticker, exp) || []).slice().sort(function (a, b) { return a.strike - b.strike; });
+      if (!chain.length) { empty.textContent = 'no calls for ' + exp; return; }
+      empty.style.display = 'none';
+      var band = cfg.rollUpDeltaBand || [0.65, 0.85];
+      chain.forEach(function (c) {
+        var mid = (c.bid && c.ask) ? (c.bid + c.ask) / 2 : c.mark;
+        var spread = (c.bid && c.ask && mid) ? (c.ask - c.bid) / mid : null;
+        var liquid = E.liquidityOK(c, cfg.liquidityMinOI, cfg.liquidityMaxSpreadPct);
+        var inBand = c.delta >= band[0] && c.delta <= band[1];
+        var tr = document.createElement('tr');
+        tr.className = 'chain-row' + (inBand ? ' in-band' : '') + (liquid ? '' : ' illiquid');
+        tr.innerHTML =
+          '<td>' + c.strike + '</td>' +
+          '<td>' + fmt2(c.delta) + '</td>' +
+          '<td>' + fmt2(c.bid) + '</td>' +
+          '<td>' + fmt2(c.ask) + '</td>' +
+          '<td>' + fmt2(c.mark) + '</td>' +
+          '<td>' + (c.oi || 0) + (liquid ? '' : '<span class="tag">thin</span>') + '</td>' +
+          '<td>' + (spread != null ? (spread * 100).toFixed(1) + '%' : '-') + '</td>' +
+          '<td>' + (inBand ? '<span class="tag" style="color:var(--accent)">band</span>' : '') + '</td>';
+        tr.onclick = function () { selectContract(c, exp, tr); };
+        tb.appendChild(tr);
+      });
+    } catch (e) { empty.style.display = 'block'; empty.textContent = e.message; }
+  }
+
+  function selectContract(c, exp, tr) {
+    picker.selected = { contract: c, expiration: exp };
+    Array.prototype.forEach.call($('chain-table').querySelectorAll('tr.selected'), function (x) { x.classList.remove('selected'); });
+    tr.classList.add('selected');
+    var cfg = getConfig(), e = picker.entry, budget = cfg.accountBalance * cfg.riskPct;
+    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: c.mark });
+    $('select-summary').innerHTML = 'Selected <strong>' + e.ticker + ' ' + c.strike + 'C ' + exp + '</strong> (' +
+      E.dteBetween(e.date, exp) + 'd, &Delta; ' + fmt2(c.delta) + ') &middot; <strong>' + size.contracts +
+      '</strong> contracts &middot; premium ' + fmtMoney(size.premium) + ' &middot; risk ' + fmtMoney(budget) + ' at the -1 ATR stop';
+    $('t-prem').value = fmt2(c.mark);
+    $('select-box').style.display = 'block';
+  }
+
+  function addSelected() {
+    var msg = $('t-msg'); msg.className = 'hint';
+    if (!picker.entry || !picker.selected) { msg.className = 'err'; msg.textContent = 'pick a contract first'; return; }
+    var cfg = getConfig(), e = picker.entry, c = picker.selected.contract, exp = picker.selected.expiration;
+    var override = parseFloat($('t-prem').value);
+    var entryMark = isFinite(override) ? override : c.mark;
+    var budget = cfg.accountBalance * cfg.riskPct;
+    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: entryMark });
+    var camp = {
+      id: e.ticker + '-' + e.date + '-' + (getPositions().length + 1),
+      ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
+      entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: size.contracts,
+      stopLevel: e.price - cfg.atrStopMult * e.atr, emergencyLevel: e.price - cfg.atrEmergencyMult * e.atr,
+      rollUpStepsTaken: 0,
+      legs: [{ strike: c.strike, expiration: exp, deltaAtEntry: c.delta, entryMark: entryMark, exitMark: null, exitReason: null, realizedPnl: null, openedOn: e.date, closedOn: null }],
+      netPnl: null, exitReason: null
+    };
+    var positions = getPositions(); positions.push(camp); setPositions(positions);
+    var history = getHistory(); history.events.push({ campaign: camp.id, type: 'open', detail: e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts, ts: e.date }); setHistory(history);
+    msg.textContent = 'Added ' + e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts + ' (entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
+    $('chain-panel').style.display = 'none'; $('t-ticker').value = ''; picker.selected = null;
+    if (gh().pat) pushState();
+    render();
   }
 
   /* ---------- live tick: evaluate + apply (open-tab tracking) ---------- */
@@ -324,7 +377,9 @@
     }
     $('t-date').value = isoToday();
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
-    $('t-add').onclick = addTrade;
+    $('t-load').onclick = loadChain;
+    $('t-add').onclick = addSelected;
+    $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
     $('s-save').onclick = saveSettings;
     $('gh-pull').onclick = pullFromRepo;

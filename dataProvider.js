@@ -53,6 +53,13 @@
     return d.map(function (x) { return { date: x.date, o: +x.open, h: +x.high, l: +x.low, c: +x.close }; });
   }
 
+  function parseTradierExpirations(json) {
+    var d = json && json.expirations && json.expirations.date;
+    if (!d) return [];
+    if (!Array.isArray(d)) d = [d];
+    return d.slice();
+  }
+
   function parseTradierChain(json) {
     var o = json && json.options && json.options.option;
     if (!o) return [];
@@ -185,6 +192,18 @@
         throw new Error('FMP does not support option quotes; set providers.optionsGreeks to tradier or alpaca');
       },
 
+      getExpirations: function (sym) {
+        if (options === 'tradier') return tradierGet('/v1/markets/options/expirations?symbol=' + sym).then(parseTradierExpirations);
+        if (options === 'alpaca') {
+          return alpacaGet('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?type=call&limit=1000').then(function (j) {
+            var rows = parseAlpacaOptionSnapshots(null)(j), set = {};
+            rows.forEach(function (c) { if (c.expiration) set[c.expiration] = 1; });
+            return Object.keys(set).sort();
+          });
+        }
+        throw new Error('FMP does not support option expirations; set providers.optionsGreeks to tradier or alpaca');
+      },
+
       getOptionCandidates: function (sym, todayISO) {
         if (options === 'tradier') {
           return tradierGet('/v1/markets/options/expirations?symbol=' + sym).then(function (j) {
@@ -248,6 +267,7 @@
     parseFmpIntradayAt: parseFmpIntradayAt,
     parseFmpQuotePrice: parseFmpQuotePrice,
     parseTradierHistory: parseTradierHistory,
+    parseTradierExpirations: parseTradierExpirations,
     parseTradierChain: parseTradierChain,
     parseTradierQuote: parseTradierQuote,
     parseTradierQuotePrice: parseTradierQuotePrice,

@@ -78,6 +78,9 @@ function stubHttp(routes) {
 
     var quote = { quotes: { quote: { bid: 9.3, ask: 9.5, last: 9.35, greeks: { delta: 0.72 }, open_interest: 600 } } };
     approx(DP.parseTradierQuote(quote).mark, 9.4, 1e-9, 'parseTradierQuote mark = mid');
+
+    eq(DP.parseTradierExpirations({ expirations: { date: ['2026-07-18', '2026-08-21'] } }), ['2026-07-18', '2026-08-21'], 'parseTradierExpirations returns date list');
+    eq(DP.parseTradierExpirations({ expirations: { date: '2026-07-18' } }), ['2026-07-18'], 'parseTradierExpirations wraps single date');
   })();
 
   // createProvider dispatch + URL: Tradier chain through stubbed httpJson
@@ -94,6 +97,16 @@ function stubHttp(routes) {
     ok(seen.url.indexOf('/v1/markets/options/chains') >= 0, 'createProvider builds tradier chain URL');
     ok(seen.headers['X-Live-Token'] === 'tok', 'createProvider uses proxy X-Live-Token header');
     eq(chain[0].strike, 215, 'createProvider returns parsed chain');
+  })();
+
+  // createProvider getExpirations dispatch
+  await (async function () {
+    var seen = {};
+    var http = function (url) { seen.url = url; return Promise.resolve({ expirations: { date: ['2026-07-18', '2026-08-21', '2026-09-18'] } }); };
+    var p = DP.createProvider(CFG, { tradierProxy: 'https://proxy.example', tradierLiveToken: 'tok' }, http);
+    var exps = await p.getExpirations('AAPL');
+    ok(seen.url.indexOf('/v1/markets/options/expirations') >= 0, 'createProvider builds expirations URL');
+    eq(exps.length, 3, 'createProvider returns expiration list');
   })();
 
   /* ---- snapshot.runSnapshot orchestration via stub provider ---- */
