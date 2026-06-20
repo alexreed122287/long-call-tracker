@@ -359,6 +359,8 @@
         </div>
       </div>
       <p style="margin-top:12px"><span style="background:rgba(248,81,73,.15);color:var(--red);padding:2px 8px;border-radius:4px;font-size:12px">Red border</span> = fires intraday any time &nbsp; <span style="background:rgba(210,153,34,.15);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:12px">Amber border</span> = last hour only (3–4 PM ET) &nbsp; <span style="background:rgba(63,185,80,.15);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px">Green border</span> = profit-side rules</p>
+      <p><strong>Last-hour restriction toggle:</strong> When disabled in Settings, rules 6–8 (ATR stop, time roll, winner roll-up) fire all day rather than only 3–4 PM ET. Useful if you want more active intraday management.</p>
+      <p><strong>Regime exit toggle:</strong> When disabled, rule 3 (SPY EMA cross) is skipped entirely. Useful if you want to ignore broad market signals and let stock-level rules govern exits.</p>
     </div>
 
     <div class="ref-section">
@@ -440,6 +442,16 @@
         <div class="field"><label>Take profit % of premium (0 = off, e.g. 1.0 = 100% gain)</label><input id="s-take-profit" type="number" step="0.05" min="0"></div>
         <div class="field"><label>Stop-loss % of premium (0 = off, e.g. 0.40 = 40% loss)</label><input id="s-stop-loss-pct" type="number" step="0.05" min="0"></div>
         <div class="field"><label>Trailing stop % from premium peak (0 = off, e.g. 0.25 = 25%)</label><input id="s-trailing-stop" type="number" step="0.05" min="0"></div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px;margin-top:6px">
+          <input type="checkbox" id="s-last-hour-only" style="width:auto;margin:0">
+          <label for="s-last-hour-only" style="text-transform:none;font-size:13px;cursor:pointer;color:var(--fg)">Restrict ATR stop / rolls to last hour only (3–4 PM ET)</label>
+        </div>
+        <div class="hint" style="margin-left:26px;margin-top:2px;margin-bottom:8px">When off, ATR stop, time roll, and winner roll-up fire all day — not just the last hour.</div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px">
+          <input type="checkbox" id="s-regime-exit" style="width:auto;margin:0">
+          <label for="s-regime-exit" style="text-transform:none;font-size:13px;cursor:pointer;color:var(--fg)">Enable market regime exit (SPY 10/20 EMA bearish cross)</label>
+        </div>
+        <div class="hint" style="margin-left:26px;margin-top:2px">When off, the SPY regime filter is ignored and positions stay open through regime shifts.</div>
       </fieldset>
 
       <fieldset>
