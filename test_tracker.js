@@ -122,6 +122,16 @@ function stubHttp(routes) {
     eq(res[0].symbol, 'AAPL', 'searchSymbols returns parsed matches');
   })();
 
+  // createProvider Tradier sandbox environment + direct bearer auth
+  await (async function () {
+    var seen = {};
+    var http = function (url, headers) { seen.url = url; seen.headers = headers; return Promise.resolve({ expirations: { date: ['2026-07-18'] } }); };
+    var p = DP.createProvider(CFG, { tradierEnv: 'sandbox', tradierToken: 'sbx' }, http);
+    await p.getExpirations('MU');
+    ok(seen.url.indexOf('https://sandbox.tradier.com') === 0, 'sandbox env routes to sandbox.tradier.com');
+    ok(seen.headers['Authorization'] === 'Bearer sbx', 'direct Tradier token uses Bearer auth');
+  })();
+
   /* ---- snapshot.runSnapshot orchestration via stub provider ---- */
 
   // A. emergency close (intraday)

@@ -146,7 +146,8 @@
       if (secrets.tradierProxy && secrets.tradierLiveToken) {
         return { base: secrets.tradierProxy, headers: { 'X-Live-Token': secrets.tradierLiveToken, 'Accept': 'application/json' } };
       }
-      return { base: 'https://api.tradier.com', headers: { 'Authorization': 'Bearer ' + (secrets.tradierToken || ''), 'Accept': 'application/json' } };
+      var host = (secrets.tradierEnv === 'sandbox') ? 'https://sandbox.tradier.com' : 'https://api.tradier.com';
+      return { base: host, headers: { 'Authorization': 'Bearer ' + (secrets.tradierToken || ''), 'Accept': 'application/json' } };
     }
     function tradierGet(path) {
       var t = tradierBase();

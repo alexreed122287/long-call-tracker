@@ -194,10 +194,13 @@
         <fieldset>
           <legend>API keys (this browser only)</legend>
           <div class="field"><label>FMP key</label><input id="s-fmp" type="password"></div>
-          <div class="field"><label>Tradier proxy URL</label><input id="s-tproxy" placeholder="https://tradier-proxy...workers.dev"></div>
-          <div class="field"><label>Tradier live token</label><input id="s-tlive" type="password"></div>
-          <div class="field"><label>Tradier token (direct, opt.)</label><input id="s-ttok" type="password"></div>
+          <div class="field"><label>Tradier environment</label><select id="s-tenv"><option value="prod">Production (api.tradier.com)</option><option value="sandbox">Sandbox / test (sandbox.tradier.com)</option></select></div>
+          <div class="field"><label>Tradier API key (access token)</label><input id="s-ttok" type="password" placeholder="prod or sandbox token"></div>
+          <div class="field"><label>Tradier account ID</label><input id="s-tacct" placeholder="e.g. VA0000000 / 6YB....."></div>
+          <div class="field"><label>Tradier proxy URL (optional &mdash; overrides direct)</label><input id="s-tproxy" placeholder="https://tradier-proxy...workers.dev"></div>
+          <div class="field"><label>Tradier live token (for proxy)</label><input id="s-tlive" type="password"></div>
           <div class="field"><label>Alpaca key / secret</label><input id="s-akey" type="password" placeholder="key"><input id="s-asec" type="password" placeholder="secret" style="margin-top:6px"></div>
+          <div class="row" style="margin-top:8px"><button class="ghost" id="s-test">Test connection</button><span id="s-test-msg" class="hint"></span></div>
         </fieldset>
         <fieldset>
           <legend>GitHub sync (PAT in this browser only)</legend>

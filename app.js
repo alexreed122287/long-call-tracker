@@ -28,6 +28,7 @@
     return {
       fmpKey: lsGet('lct_fmp', ''), tradierProxy: lsGet('lct_tproxy', ''),
       tradierLiveToken: lsGet('lct_tlive', ''), tradierToken: lsGet('lct_ttok', ''),
+      tradierEnv: lsGet('lct_tenv', 'prod'), tradierAccount: lsGet('lct_tacct', ''),
       alpacaKey: lsGet('lct_akey', ''), alpacaSecret: lsGet('lct_asec', '')
     };
   }
@@ -336,12 +337,54 @@
         '<td>' + pct + '</td>' +
         '<td>' + (it.atr != null ? fmt2(it.atr) : '-') + '</td>' +
         '<td>' + sug + '</td>' +
-        '<td><button class="btn" data-buy="' + it.ticker + '" style="padding:4px 12px">Buy</button></td>' +
+        '<td><button class="ghost" data-chain="' + it.ticker + '" style="padding:4px 10px">Chain</button> <button class="btn" data-buy="' + it.ticker + '" style="padding:4px 12px">Buy</button></td>' +
         '<td><button class="danger" data-rm="' + it.ticker + '">x</button></td>';
       tb.appendChild(tr);
     });
     Array.prototype.forEach.call(tb.querySelectorAll('[data-buy]'), function (b) { b.onclick = function () { buyFromWatchlist(b.getAttribute('data-buy')); }; });
     Array.prototype.forEach.call(tb.querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { removeTicker(b.getAttribute('data-rm')); }; });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-chain]'), function (b) { b.onclick = function () { toggleChain(b.getAttribute('data-chain'), b.parentNode.parentNode); }; });
+  }
+
+  function toggleChain(ticker, tr) {
+    var nxt = tr.nextSibling;
+    if (nxt && nxt.getAttribute && nxt.getAttribute('data-detail') === ticker) { nxt.parentNode.removeChild(nxt); return; }
+    Array.prototype.forEach.call($('w-table').querySelectorAll('tr[data-detail]'), function (x) { x.parentNode.removeChild(x); });
+    var detail = document.createElement('tr'); detail.setAttribute('data-detail', ticker);
+    var td = document.createElement('td'); td.colSpan = 7; td.innerHTML = '<div class="hint">loading chain for ' + ticker + '...</div>';
+    detail.appendChild(td); tr.parentNode.insertBefore(detail, tr.nextSibling);
+    renderInlineChain(ticker, td);
+  }
+  async function renderInlineChain(ticker, td) {
+    var p; try { p = provider(); } catch (e) { td.innerHTML = '<span class="err">set API keys in Settings</span>'; return; }
+    try {
+      var today = isoToday();
+      var exps = (await p.getExpirations(ticker)).filter(function (d) { return E.dteBetween(today, d) > 0; });
+      if (!exps.length) { td.innerHTML = '<span class="err">no expirations</span>'; return; }
+      var dte = parseInt($('w-dte').value, 10) || 45, sel = nearestExp(exps, today, dte);
+      td.innerHTML = '<div class="row" style="align-items:flex-end;margin-bottom:8px"><div class="field"><label>Expiration</label><select class="ic-exp">' +
+        exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd)</option>'; }).join('') +
+        '</select></div></div><div class="ic-table"></div>';
+      var expSel = td.querySelector('.ic-exp'), box = td.querySelector('.ic-table');
+      expSel.onchange = function () { drawInlineStrikes(ticker, expSel.value, box); };
+      drawInlineStrikes(ticker, sel, box);
+    } catch (e) { td.innerHTML = '<span class="err">' + e.message + '</span>'; }
+  }
+  async function drawInlineStrikes(ticker, exp, box) {
+    box.innerHTML = '<div class="hint">loading ' + exp + '...</div>';
+    var cfg = getConfig(), p = provider();
+    try {
+      var chain = (await p.getOptionChain(ticker, exp) || []).slice().sort(function (a, b) { return a.strike - b.strike; });
+      if (!chain.length) { box.innerHTML = '<span class="hint">no calls for ' + exp + '</span>'; return; }
+      var band = cfg.rollUpDeltaBand || [0.65, 0.85];
+      var rows = chain.map(function (c) {
+        var mid = (c.bid && c.ask) ? (c.bid + c.ask) / 2 : c.mark;
+        var spread = (c.bid && c.ask && mid) ? ((c.ask - c.bid) / mid * 100).toFixed(1) + '%' : '-';
+        var liquid = E.liquidityOK(c, cfg.liquidityMinOI, cfg.liquidityMaxSpreadPct), inBand = c.delta >= band[0] && c.delta <= band[1];
+        return '<tr class="chain-row' + (inBand ? ' in-band' : '') + (liquid ? '' : ' illiquid') + '"><td>' + c.strike + '</td><td>' + fmt2(c.delta) + '</td><td>' + fmt2(c.bid) + '</td><td>' + fmt2(c.ask) + '</td><td>' + fmt2(c.mark) + '</td><td>' + (c.oi || 0) + '</td><td>' + spread + '</td></tr>';
+      }).join('');
+      box.innerHTML = '<table><thead><tr><th>Strike</th><th>&Delta;</th><th>Bid</th><th>Ask</th><th>Mark</th><th>OI</th><th>Spread</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    } catch (e) { box.innerHTML = '<span class="err">' + e.message + '</span>'; }
   }
 
   /* ---------- render ---------- */
@@ -429,6 +472,7 @@
     $('s-p-opt').value = c.providers.optionsGreeks; $('s-p-eq').value = c.providers.equityPriceAtr; $('s-p-spy').value = c.providers.spyEma;
     $('s-fmp').value = lsGet('lct_fmp', ''); $('s-tproxy').value = lsGet('lct_tproxy', '');
     $('s-tlive').value = lsGet('lct_tlive', ''); $('s-ttok').value = lsGet('lct_ttok', '');
+    $('s-tenv').value = lsGet('lct_tenv', 'prod'); $('s-tacct').value = lsGet('lct_tacct', '');
     $('s-akey').value = lsGet('lct_akey', ''); $('s-asec').value = lsGet('lct_asec', '');
     $('s-gh-owner').value = lsGet('lct_gh_owner', ''); $('s-gh-repo').value = lsGet('lct_gh_repo', '');
     $('s-gh-branch').value = lsGet('lct_gh_branch', 'main'); $('s-gh-pat').value = lsGet('lct_gh_pat', '');
@@ -443,11 +487,29 @@
     setConfig(c);
     lsSet('lct_fmp', $('s-fmp').value); lsSet('lct_tproxy', $('s-tproxy').value);
     lsSet('lct_tlive', $('s-tlive').value); lsSet('lct_ttok', $('s-ttok').value);
+    lsSet('lct_tenv', $('s-tenv').value); lsSet('lct_tacct', $('s-tacct').value);
     lsSet('lct_akey', $('s-akey').value); lsSet('lct_asec', $('s-asec').value);
     lsSet('lct_gh_owner', $('s-gh-owner').value); lsSet('lct_gh_repo', $('s-gh-repo').value);
     lsSet('lct_gh_branch', $('s-gh-branch').value || 'main'); lsSet('lct_gh_pat', $('s-gh-pat').value);
     $('s-msg').textContent = 'Saved.'; setTimeout(function () { $('s-msg').textContent = ''; }, 2000);
     render();
+  }
+  async function testConnection() {
+    var box = $('s-test-msg'); box.className = 'hint'; box.textContent = 'testing (using the values in the fields above)...';
+    var cfg = Object.assign({}, getConfig(), { providers: { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value } });
+    var sec = {
+      fmpKey: $('s-fmp').value, tradierProxy: $('s-tproxy').value, tradierLiveToken: $('s-tlive').value,
+      tradierToken: $('s-ttok').value, tradierEnv: $('s-tenv').value, tradierAccount: $('s-tacct').value,
+      alpacaKey: $('s-akey').value, alpacaSecret: $('s-asec').value
+    };
+    var p = DP.createProvider(cfg, sec), out = [];
+    try { var q = await p.getStockQuote('SPY'); out.push('equity/' + cfg.providers.equityPriceAtr + ': OK ($' + fmt2(q.price) + ')'); }
+    catch (e) { out.push('equity/' + cfg.providers.equityPriceAtr + ': ' + e.message); }
+    try { var ex = await p.getExpirations('SPY'); out.push('options/' + cfg.providers.optionsGreeks + ': OK (' + ex.length + ' expirations)'); }
+    catch (e) { out.push('options/' + cfg.providers.optionsGreeks + ': ' + e.message); }
+    var bad = out.some(function (r) { return r.indexOf('OK') < 0; });
+    box.className = bad ? 'err' : 'pos';
+    box.textContent = out.join('   |   ') + (bad && /401/.test(out.join(' ')) ? '  — 401 = bad/empty token or sandbox key on the production host; check the environment toggle and the key.' : '');
   }
 
   /* ---------- tabs + init ---------- */
@@ -468,6 +530,7 @@
     $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
     $('s-save').onclick = saveSettings;
+    $('s-test').onclick = testConnection;
     $('gh-pull').onclick = pullFromRepo;
     $('gh-push').onclick = pushState;
     $('w-add').onclick = addPasted;

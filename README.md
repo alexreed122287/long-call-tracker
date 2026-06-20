@@ -17,8 +17,8 @@ Open `index.html` (served statically, or via GitHub Pages). Set your API keys an
 GitHub PAT in the Settings tab (stored in this browser only). Tabs:
 **Watchlist · Positions · Scorecard · Settings**.
 - **Watchlist** — stage daily candidates by name/symbol search or bulk paste;
-  Refresh shows last price, daily %, ATR, and the suggested 0.65-0.85 call; Buy
-  jumps straight into the chain picker.
+  Refresh shows last price, daily %, ATR, and the suggested 0.65-0.85 call; Chain
+  expands the full option chain inline; Buy jumps straight into the chain picker.
 - **Positions** — pick a contract off the option chain; tracked against the rules
   with live marks and manual close.
 - **Scorecard** — win rate, profit factor, Sortino, Sharpe, drawdown, expectancy
@@ -26,6 +26,12 @@ GitHub PAT in the Settings tab (stored in this browser only). Tabs:
 
 While the tab is open it polls and applies the exit rules itself; the GitHub
 Action does the same while you're away.
+
+**Tradier credentials:** in Settings, pick the environment (Production
+`api.tradier.com` or Sandbox `sandbox.tradier.com`), enter your account ID + API
+key (or a proxy URL + live token), and hit **Test connection** to verify. An
+HTTP 401 means a bad/empty token or a sandbox key used against production — flip
+the environment toggle or recheck the key.
 
 ## Engine + tracker
 `engine.js` and `dataProvider.js` are pure/dependency-free, exported for both

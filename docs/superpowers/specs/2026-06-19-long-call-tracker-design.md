@@ -334,8 +334,10 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs
 - **Watchlist** — daily candidate staging list. Add tickers by **name/symbol
   search** (FMP/Tradier `searchSymbols`) or **bulk paste** (`parseTickerList`).
   **Refresh** enriches each row with last price, daily % change, ATR(14), and the
-  **suggested 0.65–0.85 call** near a target DTE. **Buy** jumps to Positions with
-  the ticker prefilled and the chain auto-loaded. Persists in `localStorage`.
+  **suggested 0.65–0.85 call** near a target DTE. **Chain** expands the full option
+  chain inline (per-expiration, band/liquidity highlighted) for a quick look.
+  **Buy** jumps to Positions with the ticker prefilled and the chain auto-loaded.
+  Persists in `localStorage`.
 - **Positions** — table of campaigns: ticker, status, entry, current stock vs
   ATR levels (−1/−3 stop & emergency, +k ATR roll ladder), current leg
   (strike/exp/delta/DTE), contracts, mark, unrealized P&L ($ and R), # rolls,
@@ -346,6 +348,10 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs
 - **Settings** — paper-account balance, risk %, thresholds, **provider selection**
   (Tradier/Alpaca/FMP per data type), and the last-hour window (writes
   `config.json`); plus API keys/tokens + GitHub PAT (localStorage only).
+  Tradier section has an **environment toggle** (Production `api.tradier.com` /
+  Sandbox `sandbox.tradier.com`), **account-ID** + **API-key** fields, and a
+  **Test connection** button that pings the configured equity + options providers
+  and reports OK / HTTP error (e.g. 401) per provider.
 
 ## 13. Testing
 
