@@ -162,14 +162,15 @@
     if (!picker.entry || !picker.selected) return;
     var cfg = getConfig(), e = picker.entry, c = picker.selected.contract, exp = picker.selected.expiration;
     var override = parseFloat($('t-prem').value);
-    var mark = isFinite(override) ? override : c.mark;
+    var mark = (isFinite(override) && override > 0) ? override : c.mark;
     var budget = cfg.accountBalance * cfg.riskPct;
-    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: mark });
-    $('t-contracts').textContent = size.contracts;
+    var contracts = Math.max(1, Math.floor(budget / (mark * 100)));
+    var totalPremium = mark * 100 * contracts;
+    $('t-contracts').textContent = contracts;
     $('select-summary').innerHTML = e.ticker + ' ' + c.strike + 'C ' + exp +
       ' &middot; ' + E.dteBetween(e.date, exp) + 'd &middot; &Delta; ' + fmt2(c.delta) +
-      ' &middot; total premium ' + fmtMoney(size.premium) +
-      ' &middot; risk budget ' + fmtMoney(budget) + ' at -1 ATR stop';
+      ' &middot; ' + fmtMoney(totalPremium) + ' total' +
+      ' &middot; ' + (cfg.riskPct * 100).toFixed(1) + '% risk (' + fmtMoney(budget) + ')';
   }
 
   function selectContract(c, exp, tr) {
@@ -188,11 +189,11 @@
     var override = parseFloat($('t-prem').value);
     var entryMark = isFinite(override) ? override : c.mark;
     var budget = cfg.accountBalance * cfg.riskPct;
-    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: entryMark });
+    var contracts = Math.max(1, Math.floor(budget / (entryMark * 100)));
     var camp = {
       id: E.nextCampaignId(getPositions(), e.ticker, e.date),
       ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
-      entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: size.contracts,
+      entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: contracts,
       stopLevel: e.price - cfg.atrStopMult * e.atr, emergencyLevel: e.price - cfg.atrEmergencyMult * e.atr,
       rollUpStepsTaken: 0,
       legs: [{ strike: c.strike, expiration: exp, deltaAtEntry: c.delta, entryMark: entryMark, exitMark: null, exitReason: null, realizedPnl: null, openedOn: e.date, closedOn: null }],
