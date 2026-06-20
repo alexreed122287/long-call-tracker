@@ -180,7 +180,7 @@
     var budget = cfg.accountBalance * cfg.riskPct;
     var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: entryMark });
     var camp = {
-      id: e.ticker + '-' + e.date + '-' + (getPositions().length + 1),
+      id: E.nextCampaignId(getPositions(), e.ticker, e.date),
       ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
       entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: size.contracts,
       stopLevel: e.price - cfg.atrStopMult * e.atr, emergencyLevel: e.price - cfg.atrEmergencyMult * e.atr,
@@ -564,6 +564,9 @@
       fetch('config.json').then(function (r) { return r.json(); }).then(function (j) { setConfig(j); loadSettings(); }).catch(function () {});
     }
     $('t-date').value = isoToday();
+    // one-time repair: ensure every stored campaign has a unique id so per-row
+    // delete/close target exactly one campaign (legacy data used a non-unique id).
+    setPositions(E.dedupeCampaignIds(getPositions()));
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
     $('t-load').onclick = loadChain;
     $('t-add').onclick = addSelected;

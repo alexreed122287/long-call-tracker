@@ -217,6 +217,39 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(E.parseTickerList(''), [], 'parseTickerList empty input');
 })();
 
+// nextCampaignId — must stay unique across delete + re-add (the delete bug)
+(function () {
+  var pos = [];
+  function add(t, d) { var id = E.nextCampaignId(pos, t, d); pos.push({ id: id, ticker: t, entryDate: d }); return id; }
+  eq(add('AAPL', '2026-06-19'), 'AAPL-2026-06-19-1', 'nextCampaignId first id = -1');
+  eq(add('AAPL', '2026-06-19'), 'AAPL-2026-06-19-2', 'nextCampaignId increments per ticker+date');
+  eq(add('MSFT', '2026-06-19'), 'MSFT-2026-06-19-1', 'nextCampaignId numbers each ticker separately');
+  // delete the first AAPL, then add another: the OLD length-based scheme would
+  // have reused "-2" (length 2 + ... ) and collided; the new one must not.
+  pos = pos.filter(function (c) { return c.id !== 'AAPL-2026-06-19-1'; });
+  var reAdded = E.nextCampaignId(pos, 'AAPL', '2026-06-19');
+  eq(reAdded, 'AAPL-2026-06-19-3', 'nextCampaignId does not reuse a live suffix after a delete');
+  ok(pos.every(function (c) { return c.id !== reAdded; }), 're-added id collides with no live campaign');
+})();
+
+// dedupeCampaignIds — repairs legacy data that already has duplicate/blank ids
+(function () {
+  var dirty = [
+    { id: 'AAPL-2026-06-19-2', ticker: 'AAPL', entryDate: '2026-06-19', tag: 'A' },
+    { id: 'AAPL-2026-06-19-2', ticker: 'AAPL', entryDate: '2026-06-19', tag: 'B' },
+    { id: '', ticker: 'TSLA', entryDate: '2026-06-19', tag: 'C' }
+  ];
+  var clean = E.dedupeCampaignIds(dirty);
+  eq(clean.length, 3, 'dedupe preserves campaign count');
+  eq(clean[0].id, 'AAPL-2026-06-19-2', 'dedupe keeps the first occurrence id');
+  ok(clean[1].id !== clean[0].id, 'dedupe reassigns the colliding duplicate');
+  ok(!!clean[2].id, 'dedupe assigns an id to a blank one');
+  var ids = clean.map(function (c) { return c.id; });
+  ok(ids.length === 3 && ids[0] !== ids[1] && ids[1] !== ids[2] && ids[0] !== ids[2], 'dedupe yields all-unique ids');
+  eq(clean.map(function (c) { return c.tag; }), ['A', 'B', 'C'], 'dedupe preserves campaigns and order');
+  eq(dirty[1].id, 'AAPL-2026-06-19-2', 'dedupe does not mutate the input');
+})();
+
 // isMonthlyExpiration / pickDefaultExpiration
 (function () {
   ok(E.isMonthlyExpiration('2026-07-17') === true, 'isMonthlyExpiration true for 3rd Friday');

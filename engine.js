@@ -296,6 +296,47 @@
     return future[0] || null;
   }
 
+  function _idSuffix(id, prefix) {
+    if (typeof id !== 'string' || id.indexOf(prefix) !== 0) return 0;
+    var n = parseInt(id.slice(prefix.length), 10);
+    return isFinite(n) ? n : 0;
+  }
+
+  // Collision-proof campaign id: TICKER-DATE-N where N is strictly greater than
+  // every live N for the same ticker+date. The old scheme used the positions
+  // array length as the counter, which reused a suffix after a delete + re-add
+  // and produced two campaigns sharing one id — that broke per-row delete/close.
+  function nextCampaignId(positions, ticker, date) {
+    var prefix = ticker + '-' + date + '-', max = 0;
+    (positions || []).forEach(function (c) {
+      var n = c ? _idSuffix(c.id, prefix) : 0;
+      if (n > max) max = n;
+    });
+    return prefix + (max + 1);
+  }
+
+  // Repair campaigns that already share an id (or have a blank id) so each is
+  // independently addressable. Keeps the first occurrence's id; reassigns later
+  // duplicates to a fresh id that collides with no original or already-assigned
+  // id. Returns a new array and does not mutate inputs.
+  function dedupeCampaignIds(positions) {
+    positions = positions || [];
+    var original = {};
+    positions.forEach(function (c) { if (c && c.id != null && c.id !== '') original[c.id] = true; });
+    var used = {}, result = [];
+    positions.forEach(function (c) {
+      var camp = c, id = camp && camp.id;
+      if (id == null || id === '' || used[id]) {
+        var t = (camp && camp.ticker) || 'POS', d = (camp && camp.entryDate) || 'x', n = 1, nid;
+        do { nid = t + '-' + d + '-' + (n++); } while (used[nid] || original[nid]);
+        camp = {}; for (var k in c) camp[k] = c[k]; camp.id = nid; id = nid;
+      }
+      used[id] = true;
+      result.push(camp);
+    });
+    return result;
+  }
+
   function parseTickerList(text) {
     var raw = ('' + (text || '')).toUpperCase().split(/[^A-Z0-9.\-]+/);
     var seen = {}, out = [], i;
@@ -323,6 +364,8 @@
     occSymbol: occSymbol,
     dteBetween: dteBetween,
     parseTickerList: parseTickerList,
+    nextCampaignId: nextCampaignId,
+    dedupeCampaignIds: dedupeCampaignIds,
     isMonthlyExpiration: isMonthlyExpiration,
     pickDefaultExpiration: pickDefaultExpiration,
     windowStrikes: windowStrikes
