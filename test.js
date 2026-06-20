@@ -210,5 +210,12 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(E.dteBetween('2026-06-19', '2026-07-18'), 29, 'dteBetween counts calendar days');
 })();
 
+// parseTickerList
+(function () {
+  eq(E.parseTickerList('aapl, msft\nnvda  aapl'), ['AAPL', 'MSFT', 'NVDA'], 'parseTickerList splits, uppercases, dedupes');
+  eq(E.parseTickerList('BRK.B, spy; qqq|tsla'), ['BRK.B', 'SPY', 'QQQ', 'TSLA'], 'parseTickerList handles mixed separators and dotted symbols');
+  eq(E.parseTickerList(''), [], 'parseTickerList empty input');
+})();
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

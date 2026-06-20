@@ -14,10 +14,18 @@ design.
 
 ## Dashboard
 Open `index.html` (served statically, or via GitHub Pages). Set your API keys and
-GitHub PAT in the Settings tab (stored in this browser only). Add trades on the
-Positions tab; the Scorecard tab shows win rate, profit factor, Sortino, Sharpe,
-drawdown, expectancy (R) and the equity curve. While the tab is open it polls and
-applies the exit rules itself; the GitHub Action does the same while you're away.
+GitHub PAT in the Settings tab (stored in this browser only). Tabs:
+**Watchlist · Positions · Scorecard · Settings**.
+- **Watchlist** — stage daily candidates by name/symbol search or bulk paste;
+  Refresh shows last price, daily %, ATR, and the suggested 0.65-0.85 call; Buy
+  jumps straight into the chain picker.
+- **Positions** — pick a contract off the option chain; tracked against the rules
+  with live marks and manual close.
+- **Scorecard** — win rate, profit factor, Sortino, Sharpe, drawdown, expectancy
+  (R) and the equity curve.
+
+While the tab is open it polls and applies the exit rules itself; the GitHub
+Action does the same while you're away.
 
 ## Engine + tracker
 `engine.js` and `dataProvider.js` are pure/dependency-free, exported for both

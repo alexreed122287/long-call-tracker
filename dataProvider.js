@@ -46,6 +46,11 @@
     return { price: +q.price };
   }
 
+  function parseFmpSearch(arr) {
+    return (arr || []).map(function (x) { return { symbol: x.symbol, name: x.name || x.companyName || '' }; })
+      .filter(function (x) { return x.symbol; });
+  }
+
   function parseTradierHistory(json) {
     var d = json && json.history && json.history.day;
     if (!d) return [];
@@ -58,6 +63,13 @@
     if (!d) return [];
     if (!Array.isArray(d)) d = [d];
     return d.slice();
+  }
+
+  function parseTradierSearch(json) {
+    var s = json && json.securities && json.securities.security;
+    if (!s) return [];
+    if (!Array.isArray(s)) s = [s];
+    return s.map(function (x) { return { symbol: x.symbol, name: x.description || '' }; });
   }
 
   function parseTradierChain(json) {
@@ -192,6 +204,13 @@
         throw new Error('FMP does not support option quotes; set providers.optionsGreeks to tradier or alpaca');
       },
 
+      searchSymbols: function (query) {
+        var q = encodeURIComponent(query);
+        if (equity === 'tradier') return tradierGet('/v1/markets/search?q=' + q + '&indexes=false').then(parseTradierSearch);
+        if (equity === 'alpaca') return Promise.resolve([{ symbol: ('' + query).toUpperCase(), name: '' }]);
+        return fmpGet('search-symbol?query=' + q + '&limit=10').then(parseFmpSearch);
+      },
+
       getExpirations: function (sym) {
         if (options === 'tradier') return tradierGet('/v1/markets/options/expirations?symbol=' + sym).then(parseTradierExpirations);
         if (options === 'alpaca') {
@@ -266,8 +285,10 @@
     parseFmpDaily: parseFmpDaily,
     parseFmpIntradayAt: parseFmpIntradayAt,
     parseFmpQuotePrice: parseFmpQuotePrice,
+    parseFmpSearch: parseFmpSearch,
     parseTradierHistory: parseTradierHistory,
     parseTradierExpirations: parseTradierExpirations,
+    parseTradierSearch: parseTradierSearch,
     parseTradierChain: parseTradierChain,
     parseTradierQuote: parseTradierQuote,
     parseTradierQuotePrice: parseTradierQuotePrice,

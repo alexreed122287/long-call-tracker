@@ -268,6 +268,16 @@
     return Math.round((b - a) / 86400000);
   }
 
+  function parseTickerList(text) {
+    var raw = ('' + (text || '')).toUpperCase().split(/[^A-Z0-9.\-]+/);
+    var seen = {}, out = [], i;
+    for (i = 0; i < raw.length; i++) {
+      var t = raw[i];
+      if (t && /^[A-Z][A-Z0-9.\-]*$/.test(t) && !seen[t]) { seen[t] = 1; out.push(t); }
+    }
+    return out;
+  }
+
   return {
     computeATR: computeATR,
     atrLevels: atrLevels,
@@ -283,6 +293,7 @@
     computeEMA: computeEMA,
     regimeBearishCross: regimeBearishCross,
     occSymbol: occSymbol,
-    dteBetween: dteBetween
+    dteBetween: dteBetween,
+    parseTickerList: parseTickerList
   };
 });

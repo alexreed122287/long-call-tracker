@@ -28,8 +28,11 @@
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  input, select { background: var(--panel2); color: var(--fg); border: 1px solid var(--line);
-    border-radius: 6px; padding: 7px 9px; font-size: 13px; }
+  input, select, textarea { background: var(--panel2); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit; }
+  .chip { display: inline-block; background: var(--panel2); border: 1px solid var(--line); color: var(--fg);
+    border-radius: 99px; padding: 4px 10px; margin: 3px 4px 0 0; cursor: pointer; font-size: 12px; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
   input[type=number] { width: 110px; } input.sm { width: 90px; }
   button.btn { background: var(--accent); color: #04121f; border: 0; border-radius: 6px;
     padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
@@ -74,13 +77,43 @@
   <span id="status"></span>
 </header>
 <nav>
-  <button data-tab="positions" class="active">Positions</button>
+  <button data-tab="watchlist" class="active">Watchlist</button>
+  <button data-tab="positions">Positions</button>
   <button data-tab="scorecard">Scorecard</button>
   <button data-tab="settings">Settings</button>
 </nav>
 <main>
 
-  <section id="positions" class="active">
+  <section id="watchlist" class="active">
+    <div class="card">
+      <h2>Watchlist</h2>
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="flex:1;min-width:220px"><label>Search name or symbol</label><input id="w-search" placeholder="apple, AAPL..."></div>
+        <button class="ghost" id="w-search-btn">Search</button>
+        <div class="field"><label>Target DTE</label><input id="w-dte" type="number" value="45" class="sm"></div>
+        <button class="ghost" id="w-refresh">Refresh data</button>
+        <button class="ghost" id="w-clear">Clear</button>
+      </div>
+      <div id="w-results"></div>
+      <div class="row" style="margin-top:12px;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:260px"><label>Paste tickers (comma / space / newline)</label><textarea id="w-paste" rows="2" placeholder="AAPL, MSFT, NVDA" style="resize:vertical"></textarea></div>
+        <button class="btn" id="w-add">Add to watchlist</button>
+      </div>
+      <div id="w-msg" class="hint" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Candidates</h2>
+      <div style="overflow-x:auto">
+        <table id="w-table">
+          <thead><tr><th>Ticker</th><th>Last</th><th>&Delta;% day</th><th>ATR(14)</th><th>Suggested call (K / &Delta; / mark / exp)</th><th></th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="w-empty" class="hint">No tickers yet. Search or paste above, then Refresh data.</div>
+    </div>
+  </section>
+
+  <section id="positions">
     <div class="card">
       <h2>Add theoretical trade</h2>
       <div class="row">

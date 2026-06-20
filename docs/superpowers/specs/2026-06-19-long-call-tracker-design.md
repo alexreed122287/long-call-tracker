@@ -328,8 +328,14 @@ Trade unit = a **closed campaign**. `R = riskBudget` per trade.
 
 ## 12. Dashboard UI
 
-Single page, position-sizer styling (no icon glyphs on labels), tabs:
+Single page, position-sizer styling (no icon glyphs on labels), tabs
+(**Watchlist · Positions · Scorecard · Settings**; Watchlist is the default):
 
+- **Watchlist** — daily candidate staging list. Add tickers by **name/symbol
+  search** (FMP/Tradier `searchSymbols`) or **bulk paste** (`parseTickerList`).
+  **Refresh** enriches each row with last price, daily % change, ATR(14), and the
+  **suggested 0.65–0.85 call** near a target DTE. **Buy** jumps to Positions with
+  the ticker prefilled and the chain auto-loaded. Persists in `localStorage`.
 - **Positions** — table of campaigns: ticker, status, entry, current stock vs
   ATR levels (−1/−3 stop & emergency, +k ATR roll ladder), current leg
   (strike/exp/delta/DTE), contracts, mark, unrealized P&L ($ and R), # rolls,

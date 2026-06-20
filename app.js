@@ -258,8 +258,94 @@
     }
   }
 
+  /* ---------- watchlist ---------- */
+  function getWatchlist() { return getJSON('lct_watchlist', []); }
+  function setWatchlist(w) { setJSON('lct_watchlist', w); }
+  function nearestExp(exps, today, targetDte) {
+    var best = null, bd = Infinity;
+    exps.forEach(function (d) { var diff = Math.abs(E.dteBetween(today, d) - targetDte); if (diff < bd) { bd = diff; best = d; } });
+    return best;
+  }
+  function addSymbols(tickers) {
+    var w = getWatchlist(), have = {}, added = 0;
+    w.forEach(function (it) { have[it.ticker] = 1; });
+    tickers.forEach(function (t) { if (!have[t]) { w.push({ ticker: t, addedOn: isoToday() }); have[t] = 1; added++; } });
+    setWatchlist(w); return added;
+  }
+  function addPasted() {
+    var n = addSymbols(E.parseTickerList($('w-paste').value));
+    $('w-paste').value = ''; $('w-msg').textContent = n ? ('Added ' + n + ' ticker(s). Click Refresh data for quotes.') : 'No new tickers.';
+    renderWatchlist();
+  }
+  async function doSearch() {
+    var q = ($('w-search').value || '').trim(), box = $('w-results');
+    if (!q) { box.innerHTML = ''; return; }
+    box.innerHTML = '<span class="hint">searching...</span>';
+    try {
+      var res = await provider().searchSymbols(q);
+      if (!res.length) { box.innerHTML = '<span class="hint">no matches</span>'; return; }
+      box.innerHTML = res.slice(0, 12).map(function (r) { return '<span class="chip" data-sym="' + r.symbol + '">' + r.symbol + (r.name ? (' &middot; ' + r.name) : '') + '</span>'; }).join('');
+      Array.prototype.forEach.call(box.querySelectorAll('[data-sym]'), function (c) {
+        c.onclick = function () { var s = c.getAttribute('data-sym'); var n = addSymbols([s]); $('w-msg').textContent = n ? ('Added ' + s) : (s + ' already on list'); renderWatchlist(); };
+      });
+    } catch (e) { box.innerHTML = '<span class="err">' + e.message + '</span>'; }
+  }
+  async function refreshWatchlist() {
+    var w = getWatchlist();
+    if (!w.length) { $('w-msg').textContent = 'nothing to refresh'; return; }
+    var cfg = getConfig(), p;
+    try { p = provider(); } catch (e) { $('w-msg').textContent = 'set API keys in Settings'; return; }
+    var dte = parseInt($('w-dte').value, 10) || 45, today = isoToday();
+    for (var i = 0; i < w.length; i++) {
+      var it = w[i];
+      $('w-msg').textContent = 'refreshing ' + it.ticker + ' (' + (i + 1) + '/' + w.length + ')...';
+      try {
+        var q = await p.getStockQuote(it.ticker);
+        var bars = await p.getDailyBars(it.ticker, isoMinusDays(today, 40), today);
+        var atr = E.computeATR(bars, 14);
+        var prevClose = bars.length ? bars[bars.length - 1].c : null;
+        it.last = q.price; it.atr = isFinite(atr) ? atr : null;
+        it.dayPct = (prevClose && q.price) ? ((q.price - prevClose) / prevClose * 100) : null;
+        try {
+          var exps = (await p.getExpirations(it.ticker)).filter(function (d) { return E.dteBetween(today, d) > 0; });
+          var exp = nearestExp(exps, today, dte);
+          if (exp) {
+            var chain = await p.getOptionChain(it.ticker, exp);
+            var c = E.pickEntryContract(chain, { targetDelta: cfg.rollUpDeltaTarget || 0.75, minOI: cfg.liquidityMinOI, maxSpreadPct: cfg.liquidityMaxSpreadPct });
+            it.sug = c ? { strike: c.strike, delta: c.delta, mark: c.mark, exp: exp } : null;
+          } else it.sug = null;
+        } catch (e2) { it.sug = null; }
+        it.err = null;
+      } catch (e) { it.err = e.message; }
+    }
+    setWatchlist(w); $('w-msg').textContent = 'refreshed ' + w.length + ' ticker(s)'; renderWatchlist();
+  }
+  function removeTicker(t) { setWatchlist(getWatchlist().filter(function (it) { return it.ticker !== t; })); renderWatchlist(); }
+  function clearWatchlist() { setWatchlist([]); $('w-results').innerHTML = ''; renderWatchlist(); }
+  function buyFromWatchlist(t) { showTab('positions'); $('t-ticker').value = t; $('t-date').value = isoToday(); loadChain(); }
+  function renderWatchlist() {
+    var w = getWatchlist(), tb = $('w-table').querySelector('tbody');
+    tb.innerHTML = ''; $('w-empty').style.display = w.length ? 'none' : 'block';
+    w.forEach(function (it) {
+      var sug = it.sug ? (it.sug.strike + 'C / ' + fmt2(it.sug.delta) + ' / ' + fmt2(it.sug.mark) + ' / ' + it.sug.exp) : (it.err ? ('<span class="err">' + it.err + '</span>') : '-');
+      var pct = (it.dayPct != null) ? ('<span class="' + signClass(it.dayPct) + '">' + (it.dayPct > 0 ? '+' : '') + it.dayPct.toFixed(2) + '%</span>') : '-';
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><strong>' + it.ticker + '</strong></td>' +
+        '<td>' + (it.last != null ? fmt2(it.last) : '-') + '</td>' +
+        '<td>' + pct + '</td>' +
+        '<td>' + (it.atr != null ? fmt2(it.atr) : '-') + '</td>' +
+        '<td>' + sug + '</td>' +
+        '<td><button class="btn" data-buy="' + it.ticker + '" style="padding:4px 12px">Buy</button></td>' +
+        '<td><button class="danger" data-rm="' + it.ticker + '">x</button></td>';
+      tb.appendChild(tr);
+    });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-buy]'), function (b) { b.onclick = function () { buyFromWatchlist(b.getAttribute('data-buy')); }; });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { removeTicker(b.getAttribute('data-rm')); }; });
+  }
+
   /* ---------- render ---------- */
-  function render() { renderPositions(); renderScorecard(); }
+  function render() { renderWatchlist(); renderPositions(); renderScorecard(); }
 
   function renderPositions() {
     var positions = getPositions();
@@ -384,6 +470,11 @@
     $('s-save').onclick = saveSettings;
     $('gh-pull').onclick = pullFromRepo;
     $('gh-push').onclick = pushState;
+    $('w-add').onclick = addPasted;
+    $('w-search-btn').onclick = doSearch;
+    $('w-search').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+    $('w-refresh').onclick = refreshWatchlist;
+    $('w-clear').onclick = clearWatchlist;
     loadSettings();
     render();
     // open-tab tracking: poll every 90s when keys are configured

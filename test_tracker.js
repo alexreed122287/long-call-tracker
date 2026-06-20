@@ -81,6 +81,9 @@ function stubHttp(routes) {
 
     eq(DP.parseTradierExpirations({ expirations: { date: ['2026-07-18', '2026-08-21'] } }), ['2026-07-18', '2026-08-21'], 'parseTradierExpirations returns date list');
     eq(DP.parseTradierExpirations({ expirations: { date: '2026-07-18' } }), ['2026-07-18'], 'parseTradierExpirations wraps single date');
+
+    eq(DP.parseFmpSearch([{ symbol: 'AAPL', name: 'Apple Inc.' }, { symbol: '', name: 'bad' }]), [{ symbol: 'AAPL', name: 'Apple Inc.' }], 'parseFmpSearch maps and drops empties');
+    eq(DP.parseTradierSearch({ securities: { security: [{ symbol: 'AAPL', description: 'Apple Inc' }] } }), [{ symbol: 'AAPL', name: 'Apple Inc' }], 'parseTradierSearch maps securities');
   })();
 
   // createProvider dispatch + URL: Tradier chain through stubbed httpJson
@@ -107,6 +110,16 @@ function stubHttp(routes) {
     var exps = await p.getExpirations('AAPL');
     ok(seen.url.indexOf('/v1/markets/options/expirations') >= 0, 'createProvider builds expirations URL');
     eq(exps.length, 3, 'createProvider returns expiration list');
+  })();
+
+  // createProvider searchSymbols dispatch (FMP)
+  await (async function () {
+    var seen = {};
+    var http = function (url) { seen.url = url; return Promise.resolve([{ symbol: 'AAPL', name: 'Apple Inc.' }]); };
+    var p = DP.createProvider({ providers: { equityPriceAtr: 'fmp', optionsGreeks: 'tradier', spyEma: 'fmp' } }, { fmpKey: 'k' }, http);
+    var res = await p.searchSymbols('apple');
+    ok(seen.url.indexOf('search-symbol') >= 0, 'createProvider builds FMP search URL');
+    eq(res[0].symbol, 'AAPL', 'searchSymbols returns parsed matches');
   })();
 
   /* ---- snapshot.runSnapshot orchestration via stub provider ---- */
