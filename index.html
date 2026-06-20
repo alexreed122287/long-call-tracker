@@ -36,7 +36,9 @@
   input[type=number] { width: 110px; } input.sm { width: 90px; }
   button.btn { background: var(--accent); color: #04121f; border: 0; border-radius: 6px;
     padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
-  button.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); }
+  button.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
   button.danger { background: transparent; color: var(--red); border: 1px solid var(--line); padding: 4px 9px; border-radius: 5px; cursor: pointer; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
   .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
@@ -56,7 +58,8 @@
   .pill.open { color: var(--accent); border-color: var(--accent); }
   .pill.closed { color: var(--muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-  .metric { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .metric { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    position: relative; cursor: help; }
   .metric .v { font-size: 22px; font-weight: 650; }
   .metric .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
   .hint { color: var(--muted); font-size: 12px; }
@@ -68,22 +71,75 @@
   fieldset .field { margin-bottom: 8px; }
   fieldset input, fieldset select { width: 100%; }
   code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+
+  /* Tooltip */
+  .tooltip { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: #1e2c3d; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+    width: 220px; font-size: 12px; color: var(--fg); line-height: 1.5; z-index: 100;
+    pointer-events: none; text-align: left; box-shadow: 0 4px 16px rgba(0,0,0,.5); white-space: normal; }
+  .metric:hover .tooltip { display: block; }
+
+  /* Share banner */
+  #share-banner { background: rgba(77,163,255,0.12); border: 1px solid rgba(77,163,255,0.3);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: flex; align-items: center;
+    gap: 12px; flex-wrap: wrap; font-size: 13px; }
+  #share-banner .share-url { background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; flex: 1; min-width: 200px; font-size: 12px;
+    color: var(--muted); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Exit strategy legend */
+  .exit-rule { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .exit-rule:last-child { border-bottom: 0; }
+  .exit-rule-badge { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); color: var(--amber); }
+  .exit-rule-body { flex: 1; }
+  .exit-rule-trigger { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Calendar */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 12px; }
+  .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 4px; }
+  .cal-header div { text-align: center; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; padding: 4px 0; }
+  .cal-cell { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; min-height: 54px; font-size: 11px; cursor: default; }
+  .cal-cell.other-month { opacity: .3; }
+  .cal-cell.has-pnl.pos { border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.07); }
+  .cal-cell.has-pnl.neg { border-color: rgba(248,81,73,.4); background: rgba(248,81,73,.07); }
+  .cal-cell.has-pnl { cursor: pointer; }
+  .cal-cell .cal-day { color: var(--muted); font-size: 10px; font-weight: 600; margin-bottom: 3px; }
+  .cal-cell .cal-pnl { font-size: 12px; font-weight: 700; }
+  .cal-nav { display: flex; align-items: center; gap: 12px; }
+  .cal-nav span { font-size: 15px; font-weight: 600; }
+
+  /* Exit strategy performance table */
+  .exit-perf-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .exit-perf-table th, .exit-perf-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: right; }
+  .exit-perf-table th:first-child, .exit-perf-table td:first-child { text-align: left; }
+  .exit-perf-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+
+  /* Shareability: URL state badge */
+  .state-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel2);
+    border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
+  .state-badge.synced { color: var(--green); border-color: rgba(63,185,80,.4); }
+  .state-badge.dirty { color: var(--amber); border-color: rgba(210,153,34,.4); }
 </style>
 </head>
 <body>
 <header>
   <h1>Long-Call Tracker</h1>
-  <span class="sub">paper long calls &middot; ATR exit engine &middot; live scorecard</span>
+  <span class="sub">DITM long calls · ATR exit engine · live scorecard</span>
+  <span id="share-state" class="state-badge">local</span>
   <span id="status"></span>
 </header>
 <nav>
   <button data-tab="watchlist" class="active">Watchlist</button>
   <button data-tab="positions">Positions</button>
   <button data-tab="scorecard">Scorecard</button>
+  <button data-tab="calendar">Calendar</button>
   <button data-tab="settings">Settings</button>
 </nav>
 <main>
 
+  <!-- ===== WATCHLIST ===== -->
   <section id="watchlist" class="active">
     <div class="card">
       <h2>Watchlist</h2>
@@ -93,6 +149,7 @@
         <div class="field"><label>Target expiration</label><select id="w-exp" style="min-width:190px"></select></div>
         <button class="ghost" id="w-refresh">Refresh data</button>
         <button class="ghost" id="w-clear">Clear</button>
+        <button class="ghost" id="w-copy-tickers" title="Copy all tickers as comma-separated list">📋 Copy Tickers</button>
       </div>
       <div id="w-results"></div>
       <div class="row" style="margin-top:12px;align-items:flex-end">
@@ -113,7 +170,14 @@
     </div>
   </section>
 
+  <!-- ===== POSITIONS ===== -->
   <section id="positions">
+    <div id="share-banner" style="display:none">
+      <span>🔗 Shareable link (no API keys included):</span>
+      <span class="share-url" id="share-url-text"></span>
+      <button class="ghost" id="copy-share-url">Copy link</button>
+      <button class="ghost" id="refresh-share-url">Refresh</button>
+    </div>
     <div class="card">
       <h2>Add theoretical trade</h2>
       <div class="row">
@@ -169,6 +233,7 @@
     </div>
   </section>
 
+  <!-- ===== SCORECARD ===== -->
   <section id="scorecard">
     <div class="card">
       <h2>Scorecard (closed campaigns)</h2>
@@ -176,11 +241,49 @@
       <div id="sc-breakdown" class="hint" style="margin-top:12px"></div>
     </div>
     <div class="card">
+      <h2>Performance by exit strategy</h2>
+      <div id="exit-perf-wrap">
+        <div class="hint">No closed campaigns yet.</div>
+      </div>
+    </div>
+    <div class="card">
       <h2>Equity curve</h2>
       <div id="equity"></div>
     </div>
   </section>
 
+  <!-- ===== CALENDAR ===== -->
+  <section id="calendar">
+    <div class="card">
+      <div class="row" style="align-items:center;margin-bottom:12px">
+        <div class="cal-nav">
+          <button class="ghost" id="cal-prev" style="padding:4px 10px">&larr;</button>
+          <span id="cal-month-label">—</span>
+          <button class="ghost" id="cal-next" style="padding:4px 10px">&rarr;</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span class="hint">Click a day to see trades closed on that date</span>
+        </div>
+      </div>
+      <div class="cal-header">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div id="cal-detail" style="margin-top:16px;display:none">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="cal-detail-date"></div>
+        <table id="cal-detail-table">
+          <thead><tr><th>Ticker</th><th>Exit reason</th><th>Legs</th><th>P&amp;L</th><th>R</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Monthly summary</h2>
+      <div id="cal-monthly-summary" class="hint">Select a month above.</div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
   <section id="settings">
     <div class="card">
       <h2>Settings</h2>
@@ -190,12 +293,32 @@
           <div class="field"><label>Paper account balance</label><input id="s-bal" type="number"></div>
           <div class="field"><label>Risk per trade (fraction)</label><input id="s-risk" type="number" step="0.01"></div>
         </fieldset>
+
+        <fieldset>
+          <legend>Exit strategy</legend>
+          <div class="field">
+            <label>Active exit strategy</label>
+            <select id="s-exit-strategy">
+              <option value="standard">Standard ATR Rules (default)</option>
+              <option value="aggressive">Aggressive — tighter stops, earlier rolls</option>
+              <option value="passive">Passive — wider stops, hold longer</option>
+              <option value="custom">Custom parameters below</option>
+            </select>
+          </div>
+          <div class="field"><label>ATR stop multiplier (×ATR below entry stock price)</label><input id="s-atr-stop" type="number" step="0.1" min="0.1"></div>
+          <div class="field"><label>ATR emergency multiplier (×ATR, any-time hard stop)</label><input id="s-atr-emerg" type="number" step="0.1" min="0.1"></div>
+          <div class="field"><label>DTE roll trigger (roll when DTE ≤ this)</label><input id="s-dte-trigger" type="number" min="1"></div>
+          <div class="field"><label>Roll-up delta band (min)</label><input id="s-ru-dmin" type="number" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>Roll-up delta band (max)</label><input id="s-ru-dmax" type="number" step="0.01" min="0" max="1"></div>
+        </fieldset>
+
         <fieldset>
           <legend>Providers</legend>
           <div class="field"><label>Options greeks &amp; chains</label><select id="s-p-opt"><option value="tradier">Tradier</option><option value="alpaca">Alpaca</option></select></div>
           <div class="field"><label>Stock price &amp; ATR</label><select id="s-p-eq"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
           <div class="field"><label>SPY EMA</label><select id="s-p-spy"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
         </fieldset>
+
         <fieldset>
           <legend>API keys (this browser only)</legend>
           <div class="field"><label>FMP key</label><input id="s-fmp" type="password"></div>
@@ -207,6 +330,7 @@
           <div class="field"><label>Alpaca key / secret</label><input id="s-akey" type="password" placeholder="key"><input id="s-asec" type="password" placeholder="secret" style="margin-top:6px"></div>
           <div class="row" style="margin-top:8px"><button class="ghost" id="s-test">Test connection</button><span id="s-test-msg" class="hint"></span></div>
         </fieldset>
+
         <fieldset>
           <legend>GitHub sync (PAT in this browser only)</legend>
           <div class="field"><label>Owner</label><input id="s-gh-owner" placeholder="alexreed122287"></div>
@@ -218,7 +342,27 @@
             <button class="ghost" id="gh-push">Push to repo</button>
           </div>
         </fieldset>
+
+        <fieldset>
+          <legend>Share / Export</legend>
+          <p class="hint" style="margin:0 0 10px">Generate a shareable URL that encodes positions &amp; history (no API keys). Recipients can import the state into their own browser.</p>
+          <div class="row">
+            <button class="btn" id="gen-share-url">Generate shareable link</button>
+            <button class="ghost" id="import-share-url">Import from URL</button>
+          </div>
+          <div id="share-url-box" style="display:none;margin-top:10px">
+            <input id="share-url-input" style="width:100%;font-size:12px;font-family:monospace" readonly>
+            <div class="hint" style="margin-top:4px">Copy this URL to share your positions &amp; P&amp;L history. API keys are never included.</div>
+          </div>
+        </fieldset>
       </div>
+
+      <!-- Exit strategy explanation -->
+      <div class="card" style="margin-top:16px;background:var(--panel2)">
+        <h2>Exit strategy rule reference</h2>
+        <div id="exit-rules-display"></div>
+      </div>
+
       <div class="row" style="margin-top:14px">
         <button class="btn" id="s-save">Save settings</button>
         <span id="s-msg" class="hint"></span>
