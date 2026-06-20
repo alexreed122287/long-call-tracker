@@ -10,20 +10,86 @@
   function getJSON(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function setJSON(k, v) { lsSet(k, JSON.stringify(v)); }
 
+  /* ---------- exit strategy presets ---------- */
+  var EXIT_PRESETS = {
+    standard: {
+      atrStopMult: 1, atrEmergencyMult: 3, dteRollTrigger: 7,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75,
+      timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70
+    },
+    aggressive: {
+      atrStopMult: 0.75, atrEmergencyMult: 2, dteRollTrigger: 10,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.78,
+      timeRollMinDelta: 0.65, timeRollMinDTE: 21, timeRollDeltaTarget: 0.75
+    },
+    passive: {
+      atrStopMult: 1.5, atrEmergencyMult: 4, dteRollTrigger: 5,
+      rollUpDeltaBand: [0.60, 0.90], rollUpDeltaTarget: 0.72,
+      timeRollMinDelta: 0.55, timeRollMinDTE: 45, timeRollDeltaTarget: 0.65
+    }
+  };
+
+  var EXIT_STRATEGY_RULES = {
+    standard: [
+      { name: 'Emergency stop', badge: '🛑', desc: 'Close immediately if stock drops below entry − 3× ATR.', trigger: 'Triggered intraday, any time. Highest priority.' },
+      { name: 'Regime exit', badge: '📉', desc: 'Close if SPY 10 EMA crosses below 20 EMA (bearish regime shift).', trigger: 'Triggered in the last hour of trading only (after 3:00 PM ET).' },
+      { name: 'ATR stop', badge: '⛔', desc: 'Close if stock drops below entry − 1× ATR.', trigger: 'Triggered in the last hour of trading only.' },
+      { name: 'Time roll', badge: '⏱️', desc: 'Roll out to a new expiration when DTE ≤ 7 and a liquid 60+ delta / 30+ DTE contract is available.', trigger: 'Last hour only. If no liquid roll is found, position closes instead.' },
+      { name: 'Winner roll-up', badge: '🎯', desc: 'Roll up the strike when stock price reaches entry + N× ATR (for the Nth step taken).', trigger: 'Last hour only. Requires a liquid contract in the 65–85 delta band.' }
+    ],
+    aggressive: [
+      { name: 'Emergency stop', badge: '🛑', desc: 'Close if stock drops below entry − 2× ATR.', trigger: 'Intraday, any time. Tighter cushion than standard.' },
+      { name: 'Regime exit', badge: '📉', desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only.' },
+      { name: 'ATR stop', badge: '⛔', desc: 'Close if stock drops below entry − 0.75× ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', desc: 'Roll when DTE ≤ 10. Targets 65+ delta, 21+ DTE.', trigger: 'Last hour only. Earlier roll trigger vs standard.' },
+      { name: 'Winner roll-up', badge: '🎯', desc: 'Roll up on each +1 ATR step in the 65–85 delta band.', trigger: 'Last hour only.' }
+    ],
+    passive: [
+      { name: 'Emergency stop', badge: '🛑', desc: 'Close if stock drops below entry − 4× ATR. Very wide cushion.', trigger: 'Intraday, any time.' },
+      { name: 'Regime exit', badge: '📉', desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only.' },
+      { name: 'ATR stop', badge: '⛔', desc: 'Close if stock drops below entry − 1.5× ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', desc: 'Roll when DTE ≤ 5. Targets 55+ delta, 45+ DTE to give extra time.', trigger: 'Last hour only. Holds longer before rolling.' },
+      { name: 'Winner roll-up', badge: '🎯', desc: 'Roll up on each +1 ATR step in the 60–90 delta band.', trigger: 'Last hour only.' }
+    ],
+    custom: [
+      { name: 'Emergency stop', badge: '🛑', desc: 'Close if stock drops below entry − (ATR emergency multiplier) × ATR.', trigger: 'Intraday, any time.' },
+      { name: 'Regime exit', badge: '📉', desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only (after 3:00 PM ET).' },
+      { name: 'ATR stop', badge: '⛔', desc: 'Close if stock drops below entry − (ATR stop multiplier) × ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', desc: 'Roll when DTE ≤ (DTE roll trigger). Targets configured min delta / DTE.', trigger: 'Last hour only.' },
+      { name: 'Winner roll-up', badge: '🎯', desc: 'Roll up on each +1 ATR step within the roll-up delta band.', trigger: 'Last hour only.' }
+    ]
+  };
+
+  var METRIC_TOOLTIPS = {
+    'Trades': 'Total number of campaigns that have been fully closed.',
+    'Win rate': 'Percentage of closed campaigns that closed with a positive net P&L.',
+    'Profit factor': 'Gross wins ÷ gross losses. Above 1.0 means you made more than you lost overall. 2.0+ is strong.',
+    'Expectancy': 'Average P&L per trade expressed in units of risk (R). Positive = edge. 0.30R+ is a healthy expectancy for a systematic strategy.',
+    'Max drawdown': 'The largest peak-to-trough decline in cumulative P&L across closed campaigns.',
+    'Payoff ratio': 'Average winning trade ÷ average losing trade. Shows if wins are larger than losses on average.',
+    'Avg win': 'Average dollar profit on winning closed campaigns.',
+    'Avg loss': 'Average dollar loss on losing closed campaigns.',
+    'Avg rolls': 'Average number of contract rolls executed per campaign before it closed.',
+    'Largest win': 'Highest single-campaign dollar profit.',
+    'Largest loss': 'Largest single-campaign dollar loss.',
+    'Total P&L': 'Sum of all realized P&L across every closed campaign.'
+  };
+
   var DEFAULT_CONFIG = {
     accountBalance: 1000000, riskPct: 0.05, atrStopMult: 1, atrEmergencyMult: 3, atrRollUpStep: 1,
     rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75, dteRollTrigger: 7,
     timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
     liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10,
+    exitStrategy: 'standard',
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' },
     providers: { optionsGreeks: 'tradier', equityPriceAtr: 'tradier', spyEma: 'tradier' }
   };
-  function getConfig() { return getJSON('lct_config', DEFAULT_CONFIG); }
+  function getConfig() { return Object.assign({}, DEFAULT_CONFIG, getJSON('lct_config', DEFAULT_CONFIG)); }
   function setConfig(c) { setJSON('lct_config', c); }
   function getPositions() { return getJSON('lct_positions', []); }
-  function setPositions(p) { setJSON('lct_positions', p); }
+  function setPositions(p) { setJSON('lct_positions', p); markDirty(); }
   function getHistory() { return getJSON('lct_history', { events: [], equity: [] }); }
-  function setHistory(h) { setJSON('lct_history', h); }
+  function setHistory(h) { setJSON('lct_history', h); markDirty(); }
   function secrets() {
     return {
       fmpKey: lsGet('lct_fmp', ''), tradierProxy: lsGet('lct_tproxy', ''),
@@ -34,6 +100,23 @@
   }
   function gh() { return { owner: lsGet('lct_gh_owner', ''), repo: lsGet('lct_gh_repo', ''), pat: lsGet('lct_gh_pat', ''), branch: lsGet('lct_gh_branch', 'main') }; }
   function provider() { return DP.createProvider(getConfig(), secrets()); }
+
+  /* ---------- share state badge ---------- */
+  var _isDirty = false;
+  function markDirty() {
+    _isDirty = true;
+    var el = document.getElementById('share-state');
+    if (el) { el.textContent = 'unsaved'; el.className = 'state-badge dirty'; }
+  }
+  function markSynced() {
+    _isDirty = false;
+    var el = document.getElementById('share-state');
+    if (el) { el.textContent = 'synced'; el.className = 'state-badge synced'; }
+  }
+  function markLocal() {
+    var el = document.getElementById('share-state');
+    if (el) { el.textContent = 'local'; el.className = 'state-badge'; }
+  }
 
   /* ---------- helpers ---------- */
   function $(id) { return document.getElementById(id); }
@@ -50,6 +133,77 @@
     return { dateISO: p.year + '-' + p.month + '-' + p.day, minutes: ((+p.hour) % 24) * 60 + (+p.minute) };
   }
   function cstToEt(hhmm) { var pr = (hhmm || '08:45').split(':'); var m = (+pr[0]) * 60 + (+pr[1]) + 60; return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
+
+  /* ---------- shareable URL (no API keys) ---------- */
+  function buildSharePayload() {
+    return {
+      positions: getPositions(),
+      history: getHistory(),
+      config: (function () {
+        var c = getConfig();
+        // strip sensitive data — only share structural config
+        return {
+          accountBalance: c.accountBalance,
+          riskPct: c.riskPct,
+          atrStopMult: c.atrStopMult,
+          atrEmergencyMult: c.atrEmergencyMult,
+          dteRollTrigger: c.dteRollTrigger,
+          rollUpDeltaBand: c.rollUpDeltaBand,
+          rollUpDeltaTarget: c.rollUpDeltaTarget,
+          timeRollMinDelta: c.timeRollMinDelta,
+          timeRollMinDTE: c.timeRollMinDTE,
+          exitStrategy: c.exitStrategy
+        };
+      })()
+    };
+  }
+
+  function generateShareURL() {
+    try {
+      var payload = buildSharePayload();
+      var json = JSON.stringify(payload);
+      var compressed = btoa(unescape(encodeURIComponent(json)));
+      var url = window.location.origin + window.location.pathname + '?share=' + compressed;
+      return url;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function importSharePayload(encoded) {
+    try {
+      var json = decodeURIComponent(escape(atob(encoded)));
+      var payload = JSON.parse(json);
+      if (payload.positions) setPositions(E.dedupeCampaignIds(payload.positions));
+      if (payload.history) setHistory(payload.history);
+      if (payload.config) {
+        var cfg = getConfig();
+        Object.assign(cfg, payload.config);
+        setConfig(cfg);
+        loadSettings();
+      }
+      render();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function checkURLShare() {
+    var params = new URLSearchParams(window.location.search);
+    var share = params.get('share');
+    if (!share) return;
+    var ok = importSharePayload(share);
+    if (ok) {
+      // remove ?share= from URL without reload
+      var clean = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, '', clean);
+      setStatus('Loaded shared data');
+      markSynced();
+    } else {
+      setStatus('Failed to load shared data');
+    }
+  }
 
   /* ---------- GitHub contents API ---------- */
   function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
@@ -79,7 +233,7 @@
       var pos = await ghGet('positions.json'); var his = await ghGet('history.json');
       if (pos && pos.json) setPositions(pos.json);
       if (his && his.json) setHistory(his.json);
-      render(); setStatus('pulled from repo');
+      render(); setStatus('pulled from repo'); markSynced();
     } catch (e) { setStatus('pull failed: ' + e.message); }
   }
   async function pushState() {
@@ -89,7 +243,7 @@
       await ghPut('positions.json', getPositions(), pos && pos.sha, 'dashboard: update positions');
       var his = await ghGet('history.json');
       await ghPut('history.json', getHistory(), his && his.sha, 'dashboard: update history');
-      setStatus('pushed to repo');
+      setStatus('pushed to repo'); markSynced();
     } catch (e) { setStatus('push failed: ' + e.message); }
   }
 
@@ -194,20 +348,23 @@
       id: E.nextCampaignId(getPositions(), e.ticker, e.date),
       ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
       entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: contracts,
+      exitStrategyAtEntry: cfg.exitStrategy || 'standard',
       stopLevel: e.price - cfg.atrStopMult * e.atr, emergencyLevel: e.price - cfg.atrEmergencyMult * e.atr,
       rollUpStepsTaken: 0,
       legs: [{ strike: c.strike, expiration: exp, deltaAtEntry: c.delta, entryMark: entryMark, exitMark: null, exitReason: null, realizedPnl: null, openedOn: e.date, closedOn: null }],
       netPnl: null, exitReason: null
     };
     var positions = getPositions(); positions.push(camp); setPositions(positions);
-    var history = getHistory(); history.events.push({ campaign: camp.id, type: 'open', detail: e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts, ts: e.date }); setHistory(history);
-    msg.textContent = 'Added ' + e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts + ' (entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
+    var history = getHistory();
+    history.events.push({ campaign: camp.id, type: 'open', detail: e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + contracts, ts: e.date });
+    setHistory(history);
+    msg.textContent = 'Added ' + e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + contracts + ' (entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
     $('chain-panel').style.display = 'none'; $('t-ticker').value = ''; picker.selected = null;
     if (gh().pat) pushState();
     render();
   }
 
-  /* ---------- live tick: evaluate + apply (open-tab tracking) ---------- */
+  /* ---------- live tick ---------- */
   async function tick() {
     var cfg = getConfig(), p;
     try { p = provider(); } catch (e) { setStatus('set API keys'); return; }
@@ -231,7 +388,7 @@
         if (action.type !== 'none') {
           var res = E.applyAction(camp, action, ctx);
           positions[i] = res.campaign;
-          for (var e = 0; e < res.events.length; e++) history.events.push(res.events[e]);
+          for (var ev = 0; ev < res.events.length; ev++) history.events.push(res.events[ev]);
           changed = true;
         }
       } catch (err) { setStatus('data error: ' + err.message); }
@@ -312,6 +469,26 @@
     $('w-paste').value = ''; $('w-msg').textContent = n ? ('Added ' + n + ' ticker(s). Click Refresh data for quotes.') : 'No new tickers.';
     renderWatchlist();
   }
+
+  function copyWatchlistTickers() {
+    var w = getWatchlist();
+    if (!w.length) { $('w-msg').textContent = 'No tickers to copy.'; return; }
+    var csv = w.map(function (it) { return it.ticker; }).join(',');
+    navigator.clipboard.writeText(csv).then(function () {
+      var btn = $('w-copy-tickers');
+      btn.textContent = '✅ Copied!';
+      $('w-msg').textContent = 'Copied ' + w.length + ' ticker(s) to clipboard: ' + csv;
+      setTimeout(function () { btn.textContent = '📋 Copy Tickers'; }, 2000);
+    }).catch(function () {
+      // fallback
+      var ta = document.createElement('textarea');
+      ta.value = csv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      $('w-msg').textContent = 'Copied: ' + csv;
+    });
+  }
+
   async function doSearch() {
     var q = ($('w-search').value || '').trim(), box = $('w-results');
     if (!q) { box.innerHTML = ''; return; }
@@ -438,7 +615,7 @@
   }
 
   /* ---------- render ---------- */
-  function render() { renderWatchlist(); renderPositions(); renderScorecard(); }
+  function render() { renderWatchlist(); renderPositions(); renderScorecard(); renderCalendar(); updateShareBanner(); }
 
   function renderPositions() {
     var positions = getPositions();
@@ -478,25 +655,73 @@
   }
 
   function renderScorecard() {
-    var s = E.scorecard(getPositions());
+    var positions = getPositions();
+    var s = E.scorecard(positions);
     var grid = $('sc-grid');
     var metrics = [
-      ['Trades', s.trades], ['Win rate', (s.winRate * 100).toFixed(1) + '%'],
+      ['Trades', s.trades],
+      ['Win rate', (s.winRate * 100).toFixed(1) + '%'],
       ['Profit factor', isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'],
-      ['Expectancy', s.expectancyR.toFixed(2) + 'R'], ['Sortino', s.sortino.toFixed(2)],
-      ['Sharpe', s.sharpe.toFixed(2)], ['Max drawdown', fmtMoney(s.maxDrawdown)],
-      ['Payoff ratio', s.payoffRatio.toFixed(2)], ['Avg win', fmtMoney(s.avgWin)],
-      ['Avg loss', fmtMoney(s.avgLoss)], ['Avg rolls', s.avgRolls.toFixed(2)],
+      ['Expectancy', s.expectancyR.toFixed(2) + 'R'],
+      ['Max drawdown', fmtMoney(s.maxDrawdown)],
+      ['Payoff ratio', s.payoffRatio.toFixed(2)],
+      ['Avg win', fmtMoney(s.avgWin)],
+      ['Avg loss', fmtMoney(s.avgLoss)],
+      ['Avg rolls', s.avgRolls.toFixed(2)],
+      ['Largest win', fmtMoney(s.largestWin)],
+      ['Largest loss', fmtMoney(s.largestLoss)],
       ['Total P&L', fmtMoney(s.totalPnl)]
     ];
     grid.innerHTML = metrics.map(function (m) {
-      var cls = (m[0] === 'Total P&L') ? signClass(s.totalPnl) : '';
-      return '<div class="metric"><div class="v ' + cls + '">' + m[1] + '</div><div class="k">' + m[0] + '</div></div>';
+      var cls = (m[0] === 'Total P&L') ? signClass(s.totalPnl) : (m[0] === 'Largest win') ? 'pos' : (m[0] === 'Largest loss') ? 'neg' : '';
+      var tip = METRIC_TOOLTIPS[m[0]] || '';
+      return '<div class="metric"><div class="tooltip">' + tip + '</div><div class="v ' + cls + '">' + m[1] + '</div><div class="k">' + m[0] + '</div></div>';
     }).join('');
+
     var br = s.exitReasonBreakdown || {};
     var parts = Object.keys(br).map(function (k) { return k + ': ' + br[k]; });
     $('sc-breakdown').textContent = parts.length ? ('Exit reasons — ' + parts.join(', ')) : 'No closed campaigns yet.';
+
+    renderExitPerformance(positions);
     renderEquity();
+  }
+
+  function renderExitPerformance(positions) {
+    var closed = (positions || []).filter(function (c) { return c.status === 'closed'; });
+    var wrap = $('exit-perf-wrap');
+    if (!closed.length) { wrap.innerHTML = '<div class="hint">No closed campaigns yet.</div>'; return; }
+    // group by exit reason
+    var groups = {};
+    closed.forEach(function (c) {
+      var reason = c.exitReason || 'unknown';
+      if (!groups[reason]) groups[reason] = { trades: 0, wins: 0, pnls: [], Rs: [] };
+      var g = groups[reason];
+      g.trades++;
+      if ((c.netPnl || 0) > 0) g.wins++;
+      g.pnls.push(c.netPnl || 0);
+      g.Rs.push(c.riskBudget ? (c.netPnl || 0) / c.riskBudget : 0);
+    });
+    var labels = {
+      emergency: '🛑 Emergency stop', stop: '⛔ ATR stop', regime: '📉 Regime exit',
+      dte_close: '⏱️ DTE close (no roll)', dte_roll: '⏱️ Time roll', roll_up: '🎯 Winner roll-up',
+      manual: '✋ Manual close', unknown: '? Unknown'
+    };
+    function mean(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; }
+    var rows = Object.keys(groups).sort().map(function (reason) {
+      var g = groups[reason];
+      var totalPnl = g.pnls.reduce(function (s, x) { return s + x; }, 0);
+      return '<tr>' +
+        '<td>' + (labels[reason] || reason) + '</td>' +
+        '<td>' + g.trades + '</td>' +
+        '<td>' + (g.wins / g.trades * 100).toFixed(0) + '%</td>' +
+        '<td class="' + signClass(totalPnl) + '">' + fmtMoney(totalPnl) + '</td>' +
+        '<td>' + mean(g.Rs).toFixed(2) + 'R</td>' +
+        '<td class="' + signClass(mean(g.pnls)) + '">' + fmtMoney(mean(g.pnls)) + '</td>' +
+        '</tr>';
+    }).join('');
+    wrap.innerHTML = '<table class="exit-perf-table">' +
+      '<thead><tr><th>Exit reason</th><th>Trades</th><th>Win %</th><th>Total P&L</th><th>Avg R</th><th>Avg P&L</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table>';
   }
 
   function renderEquity() {
@@ -504,11 +729,11 @@
     var box = $('equity');
     if (eq.length < 2) { box.innerHTML = '<div class="hint">Equity curve appears once there are at least two daily snapshots.</div>'; return; }
     var vals = eq.map(function (p) { return p.equity; });
-    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), W = 720, H = 140, pad = 8;
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), W = 720, H = 140, padV = 8;
     var span = (max - min) || 1;
     var pts = vals.map(function (v, i) {
-      var x = pad + i * (W - 2 * pad) / (vals.length - 1);
-      var y = H - pad - (v - min) / span * (H - 2 * pad);
+      var x = padV + i * (W - 2 * padV) / (vals.length - 1);
+      var y = H - padV - (v - min) / span * (H - 2 * padV);
       return x.toFixed(1) + ',' + y.toFixed(1);
     }).join(' ');
     var up = vals[vals.length - 1] >= vals[0];
@@ -517,10 +742,168 @@
       '<div class="hint">' + eq[0].date + ' → ' + eq[eq.length - 1].date + ' &middot; ' + fmtMoney(vals[0]) + ' → ' + fmtMoney(vals[vals.length - 1]) + '</div>';
   }
 
+  /* ---------- calendar ---------- */
+  var calState = { year: null, month: null };
+
+  function renderCalendar() {
+    var now = new Date();
+    if (calState.year === null) { calState.year = now.getFullYear(); calState.month = now.getMonth(); }
+    drawCalendar(calState.year, calState.month);
+  }
+
+  function buildDailyPnl() {
+    var map = {};
+    var positions = getPositions();
+    positions.forEach(function (c) {
+      if (c.status !== 'closed' || !c.netPnl) return;
+      var legs = c.legs || [];
+      // use last leg's closedOn date
+      var closeDate = null;
+      for (var i = legs.length - 1; i >= 0; i--) {
+        if (legs[i].closedOn) { closeDate = legs[i].closedOn; break; }
+      }
+      if (!closeDate) return;
+      if (!map[closeDate]) map[closeDate] = { pnl: 0, trades: [] };
+      map[closeDate].pnl += (c.netPnl || 0);
+      map[closeDate].trades.push(c);
+    });
+    return map;
+  }
+
+  function drawCalendar(year, month) {
+    var grid = $('cal-grid');
+    if (!grid) return;
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    $('cal-month-label').textContent = monthNames[month] + ' ' + year;
+
+    var dailyPnl = buildDailyPnl();
+    var firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var daysInPrev = new Date(year, month, 0).getDate();
+
+    var cells = [];
+    // prev month fill
+    for (var i = 0; i < firstDay; i++) {
+      cells.push({ day: daysInPrev - firstDay + 1 + i, other: true });
+    }
+    // this month
+    for (var d = 1; d <= daysInMonth; d++) {
+      var iso = year + '-' + pad(month + 1) + '-' + pad(d);
+      cells.push({ day: d, iso: iso, data: dailyPnl[iso] || null });
+    }
+    // next month fill
+    var remaining = 42 - cells.length;
+    for (var j = 1; j <= remaining; j++) {
+      cells.push({ day: j, other: true });
+    }
+
+    grid.innerHTML = cells.map(function (cell) {
+      if (cell.other) return '<div class="cal-cell other-month"><div class="cal-day">' + cell.day + '</div></div>';
+      var hasPnl = cell.data && cell.data.pnl !== 0;
+      var cls = 'cal-cell' + (hasPnl ? ' has-pnl ' + signClass(cell.data.pnl) : '');
+      var pnlHtml = hasPnl ? '<div class="cal-pnl ' + signClass(cell.data.pnl) + '">' + fmtMoney(cell.data.pnl) + '</div>' : '';
+      return '<div class="' + cls + '" data-iso="' + cell.iso + '">' +
+        '<div class="cal-day">' + cell.day + '</div>' + pnlHtml + '</div>';
+    }).join('');
+
+    Array.prototype.forEach.call(grid.querySelectorAll('.cal-cell.has-pnl'), function (el) {
+      el.onclick = function () { showCalDetail(el.getAttribute('data-iso'), dailyPnl); };
+    });
+
+    // monthly summary
+    var monthPnl = 0, monthTrades = 0;
+    Object.keys(dailyPnl).forEach(function (iso) {
+      if (iso.startsWith(year + '-' + pad(month + 1))) {
+        monthPnl += dailyPnl[iso].pnl;
+        monthTrades += dailyPnl[iso].trades.length;
+      }
+    });
+    var summary = $('cal-monthly-summary');
+    if (summary) {
+      if (monthTrades > 0) {
+        summary.innerHTML = '<strong>' + monthNames[month] + ' ' + year + '</strong>: ' +
+          monthTrades + ' closed trade' + (monthTrades !== 1 ? 's' : '') + ' · Total P&L: <span class="' + signClass(monthPnl) + '">' + fmtMoney(monthPnl) + '</span>';
+        summary.className = '';
+      } else {
+        summary.textContent = 'No closed trades in ' + monthNames[month] + ' ' + year + '.';
+        summary.className = 'hint';
+      }
+    }
+  }
+
+  function showCalDetail(iso, dailyPnl) {
+    var detailBox = $('cal-detail');
+    var dateLabel = $('cal-detail-date');
+    var tb = $('cal-detail-table').querySelector('tbody');
+    if (!dailyPnl[iso]) { detailBox.style.display = 'none'; return; }
+    dateLabel.textContent = iso;
+    tb.innerHTML = '';
+    dailyPnl[iso].trades.forEach(function (c) {
+      var r = (c.netPnl != null && c.riskBudget) ? c.netPnl / c.riskBudget : null;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + c.ticker + '</td>' +
+        '<td>' + (c.exitReason || '-') + '</td>' +
+        '<td>' + (c.legs.length - 1) + ' roll' + (c.legs.length !== 2 ? 's' : '') + '</td>' +
+        '<td class="' + signClass(c.netPnl) + '">' + fmtMoney(c.netPnl) + '</td>' +
+        '<td class="' + signClass(r) + '">' + (r != null ? (r > 0 ? '+' : '') + r.toFixed(2) + 'R' : '-') + '</td>';
+      tb.appendChild(tr);
+    });
+    detailBox.style.display = 'block';
+  }
+
+  /* ---------- share banner ---------- */
+  function updateShareBanner() {
+    var banner = $('share-banner');
+    if (!banner) return;
+    var positions = getPositions();
+    if (positions.length > 0) {
+      var url = generateShareURL();
+      if (url) {
+        banner.style.display = 'flex';
+        $('share-url-text').textContent = url.length > 80 ? url.slice(0, 77) + '...' : url;
+        $('share-url-text').title = url;
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
   /* ---------- settings ---------- */
+  function renderExitRules() {
+    var cfg = getConfig();
+    var strategy = cfg.exitStrategy || 'standard';
+    var rules = EXIT_STRATEGY_RULES[strategy] || EXIT_STRATEGY_RULES.standard;
+    var box = $('exit-rules-display');
+    if (!box) return;
+    box.innerHTML = rules.map(function (r) {
+      return '<div class="exit-rule">' +
+        '<div class="exit-rule-badge">' + r.badge + ' ' + r.name + '</div>' +
+        '<div class="exit-rule-body"><div>' + r.desc + '</div><div class="exit-rule-trigger">⏰ ' + r.trigger + '</div></div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function onExitStrategyChange() {
+    var strategy = $('s-exit-strategy').value;
+    var preset = EXIT_PRESETS[strategy] || EXIT_PRESETS.standard;
+    if (strategy !== 'custom') {
+      $('s-atr-stop').value = preset.atrStopMult;
+      $('s-atr-emerg').value = preset.atrEmergencyMult;
+      $('s-dte-trigger').value = preset.dteRollTrigger;
+      $('s-ru-dmin').value = preset.rollUpDeltaBand[0];
+      $('s-ru-dmax').value = preset.rollUpDeltaBand[1];
+    }
+  }
+
   function loadSettings() {
     var c = getConfig();
     $('s-bal').value = c.accountBalance; $('s-risk').value = c.riskPct;
+    $('s-exit-strategy').value = c.exitStrategy || 'standard';
+    $('s-atr-stop').value = c.atrStopMult || 1;
+    $('s-atr-emerg').value = c.atrEmergencyMult || 3;
+    $('s-dte-trigger').value = c.dteRollTrigger || 7;
+    $('s-ru-dmin').value = (c.rollUpDeltaBand || [0.65, 0.85])[0];
+    $('s-ru-dmax').value = (c.rollUpDeltaBand || [0.65, 0.85])[1];
     $('s-p-opt').value = c.providers.optionsGreeks; $('s-p-eq').value = c.providers.equityPriceAtr; $('s-p-spy').value = c.providers.spyEma;
     $('s-fmp').value = lsGet('lct_fmp', ''); $('s-tproxy').value = lsGet('lct_tproxy', '');
     $('s-tlive').value = lsGet('lct_tlive', ''); $('s-ttok').value = lsGet('lct_ttok', '');
@@ -528,11 +911,19 @@
     $('s-akey').value = lsGet('lct_akey', ''); $('s-asec').value = lsGet('lct_asec', '');
     $('s-gh-owner').value = lsGet('lct_gh_owner', ''); $('s-gh-repo').value = lsGet('lct_gh_repo', '');
     $('s-gh-branch').value = lsGet('lct_gh_branch', 'main'); $('s-gh-pat').value = lsGet('lct_gh_pat', '');
+    renderExitRules();
   }
+
   function saveSettings() {
     var c = getConfig();
     c.accountBalance = parseFloat($('s-bal').value) || c.accountBalance;
     c.riskPct = parseFloat($('s-risk').value) || c.riskPct;
+    c.exitStrategy = $('s-exit-strategy').value;
+    c.atrStopMult = parseFloat($('s-atr-stop').value) || 1;
+    c.atrEmergencyMult = parseFloat($('s-atr-emerg').value) || 3;
+    c.dteRollTrigger = parseInt($('s-dte-trigger').value) || 7;
+    var dmin = parseFloat($('s-ru-dmin').value), dmax = parseFloat($('s-ru-dmax').value);
+    c.rollUpDeltaBand = [isFinite(dmin) ? dmin : 0.65, isFinite(dmax) ? dmax : 0.85];
     c.providers = { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value };
     setConfig(c);
     lsSet('lct_fmp', $('s-fmp').value); lsSet('lct_tproxy', $('s-tproxy').value);
@@ -542,8 +933,10 @@
     lsSet('lct_gh_owner', $('s-gh-owner').value); lsSet('lct_gh_repo', $('s-gh-repo').value);
     lsSet('lct_gh_branch', $('s-gh-branch').value || 'main'); lsSet('lct_gh_pat', $('s-gh-pat').value);
     $('s-msg').textContent = 'Saved.'; setTimeout(function () { $('s-msg').textContent = ''; }, 2000);
+    renderExitRules();
     render();
   }
+
   async function testConnection() {
     var box = $('s-test-msg'); box.className = 'hint'; box.textContent = 'testing (using the values in the fields above)...';
     var cfg = Object.assign({}, getConfig(), { providers: { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value } });
@@ -567,6 +960,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === name); });
     Array.prototype.forEach.call(document.querySelectorAll('main section'), function (s) { s.classList.toggle('active', s.id === name); });
     if (name === 'watchlist') ensureExpirations(false);
+    if (name === 'calendar') renderCalendar();
   }
 
   function init() {
@@ -575,29 +969,97 @@
       fetch('config.json').then(function (r) { return r.json(); }).then(function (j) { setConfig(j); loadSettings(); }).catch(function () {});
     }
     $('t-date').value = isoToday();
-    // one-time repair: ensure every stored campaign has a unique id so per-row
-    // delete/close target exactly one campaign (legacy data used a non-unique id).
+    // repair duplicate IDs
     setPositions(E.dedupeCampaignIds(getPositions()));
+
+    // check for shared state in URL before rendering
+    checkURLShare();
+
+    // tabs
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
+
+    // positions tab
     $('t-load').onclick = loadChain;
     $('t-add').onclick = addSelected;
     $('t-prem').oninput = updateSelectSummary;
     $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
     $('pos-clear').onclick = clearAllPositions;
+
+    // share banner (positions tab)
+    $('copy-share-url').onclick = function () {
+      var url = generateShareURL();
+      if (!url) return;
+      navigator.clipboard.writeText(url).then(function () {
+        $('copy-share-url').textContent = '✅ Copied!';
+        setTimeout(function () { $('copy-share-url').textContent = 'Copy link'; }, 2000);
+      }).catch(function () {
+        $('share-url-input').value = url;
+        $('share-url-box').style.display = 'block';
+      });
+    };
+    $('refresh-share-url').onclick = function () { updateShareBanner(); };
+
+    // scorecard — nothing extra needed
+
+    // calendar nav
+    $('cal-prev').onclick = function () {
+      calState.month--;
+      if (calState.month < 0) { calState.month = 11; calState.year--; }
+      drawCalendar(calState.year, calState.month);
+    };
+    $('cal-next').onclick = function () {
+      calState.month++;
+      if (calState.month > 11) { calState.month = 0; calState.year++; }
+      drawCalendar(calState.year, calState.month);
+    };
+
+    // settings
     $('s-save').onclick = saveSettings;
     $('s-test').onclick = testConnection;
+    $('s-exit-strategy').onchange = function () { onExitStrategyChange(); renderExitRules(); };
     $('gh-pull').onclick = pullFromRepo;
     $('gh-push').onclick = pushState;
+
+    // settings share
+    $('gen-share-url').onclick = function () {
+      var url = generateShareURL();
+      if (!url) { alert('No data to share yet.'); return; }
+      $('share-url-input').value = url;
+      $('share-url-box').style.display = 'block';
+      navigator.clipboard.writeText(url).then(function () {
+        $('gen-share-url').textContent = '✅ Link copied!';
+        setTimeout(function () { $('gen-share-url').textContent = 'Generate shareable link'; }, 3000);
+      }).catch(function () {});
+    };
+    $('import-share-url').onclick = function () {
+      var url = prompt('Paste a shareable link:');
+      if (!url) return;
+      try {
+        var params = new URLSearchParams(url.split('?')[1] || '');
+        var share = params.get('share');
+        if (!share) throw new Error('no share param');
+        var ok = importSharePayload(share);
+        if (ok) { alert('Data imported successfully!'); markSynced(); }
+        else alert('Failed to import. The link may be invalid or corrupted.');
+      } catch (e) {
+        alert('Invalid link: ' + e.message);
+      }
+    };
+
+    // watchlist
     $('w-add').onclick = addPasted;
     $('w-search-btn').onclick = doSearch;
     $('w-search').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
     $('w-refresh').onclick = refreshWatchlist;
     $('w-clear').onclick = clearWatchlist;
+    $('w-copy-tickers').onclick = copyWatchlistTickers;
+
     loadSettings();
     render();
     ensureExpirations(false);
-    // open-tab tracking: poll every 90s when keys are configured
+
+    // poll when keys configured
     setInterval(function () { if (secrets().fmpKey || secrets().tradierLiveToken || secrets().alpacaKey) tick(); }, 90000);
   }
 
