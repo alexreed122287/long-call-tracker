@@ -95,12 +95,16 @@
 
   function evaluateExits(campaign, ctx, cfg) {
     var lv = atrLevels(campaign.entryStockPrice, campaign.atrAtEntry, cfg);
-    var last = isLastHour(ctx.etMinutes, cfg);
+    // lastHourOnly toggle: when disabled, treat every tick as "last hour" so
+    // ATR stop / time-roll / winner roll-up fire all day, not just 3-4 PM ET.
+    var lastHourEnabled = cfg.lastHourOnly !== false; // default true
+    var last = lastHourEnabled ? isLastHour(ctx.etMinutes, cfg) : true;
+    var regimeEnabled = cfg.regimeExitEnabled !== false; // default true
     var entryMark = campaign.legs[0] ? campaign.legs[0].entryMark : null;
     var openLeg = campaign.legs[campaign.legs.length - 1];
     var openLegEntry = openLeg ? openLeg.entryMark : entryMark;
 
-    // ── Rule 0: Take-profit on option premium (any time, highest priority after emergency) ──
+    // ── Rule 0: Take-profit on option premium (any time) ──
     if (cfg.takeProfitPct && cfg.takeProfitPct > 0 && openLegEntry && ctx.currentMark != null) {
       var gainPct = (ctx.currentMark - openLegEntry) / openLegEntry;
       if (gainPct >= cfg.takeProfitPct) {
@@ -109,11 +113,9 @@
     }
 
     // ── Rule 0b: Trailing stop on option premium ──
-    // Tracks the high-water mark of the option price; closes if it falls back by trailingStopPct
     if (cfg.trailingStopPct && cfg.trailingStopPct > 0 && openLegEntry && ctx.currentMark != null) {
       var hwm = campaign.premiumHWM || openLegEntry;
       if (ctx.currentMark > hwm) hwm = ctx.currentMark;
-      // store on campaign so tick() can persist it
       ctx._updatedHWM = hwm;
       var pullback = (hwm - ctx.currentMark) / hwm;
       if (pullback >= cfg.trailingStopPct && ctx.currentMark > openLegEntry) {
@@ -121,8 +123,8 @@
       }
     }
 
-    // ── Rule 1: Regime exit (last hour only) ──
-    if (last && ctx.spyRegimeCross) return { type: 'close', reason: 'regime' };
+    // ── Rule 1: Regime exit (respects lastHourOnly toggle; skipped if disabled) ──
+    if (regimeEnabled && last && ctx.spyRegimeCross) return { type: 'close', reason: 'regime' };
 
     // ── Rule 2: Emergency stop (intraday, any time) ──
     if (ctx.stockPrice <= lv.emergency) return { type: 'close', reason: 'emergency' };
