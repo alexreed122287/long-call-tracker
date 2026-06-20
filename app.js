@@ -16,7 +16,7 @@
     timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
     liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10,
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' },
-    providers: { optionsGreeks: 'tradier', equityPriceAtr: 'fmp', spyEma: 'fmp' }
+    providers: { optionsGreeks: 'tradier', equityPriceAtr: 'tradier', spyEma: 'tradier' }
   };
   function getConfig() { return getJSON('lct_config', DEFAULT_CONFIG); }
   function setConfig(c) { setJSON('lct_config', c); }
@@ -492,7 +492,6 @@
   function loadSettings() {
     var c = getConfig();
     $('s-bal').value = c.accountBalance; $('s-risk').value = c.riskPct;
-    $('s-oi').value = c.liquidityMinOI; $('s-spread').value = c.liquidityMaxSpreadPct;
     $('s-p-opt').value = c.providers.optionsGreeks; $('s-p-eq').value = c.providers.equityPriceAtr; $('s-p-spy').value = c.providers.spyEma;
     $('s-fmp').value = lsGet('lct_fmp', ''); $('s-tproxy').value = lsGet('lct_tproxy', '');
     $('s-tlive').value = lsGet('lct_tlive', ''); $('s-ttok').value = lsGet('lct_ttok', '');
@@ -505,8 +504,6 @@
     var c = getConfig();
     c.accountBalance = parseFloat($('s-bal').value) || c.accountBalance;
     c.riskPct = parseFloat($('s-risk').value) || c.riskPct;
-    c.liquidityMinOI = parseFloat($('s-oi').value) || c.liquidityMinOI;
-    c.liquidityMaxSpreadPct = parseFloat($('s-spread').value) || c.liquidityMaxSpreadPct;
     c.providers = { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value };
     setConfig(c);
     lsSet('lct_fmp', $('s-fmp').value); lsSet('lct_tproxy', $('s-tproxy').value);

@@ -13,5 +13,5 @@
   "liquidityMinOI": 500,
   "liquidityMaxSpreadPct": 0.10,
   "timing": { "lastHourStartET": "15:00", "marketCloseET": "16:00" },
-  "providers": { "optionsGreeks": "tradier", "equityPriceAtr": "fmp", "spyEma": "fmp" }
+  "providers": { "optionsGreeks": "tradier", "equityPriceAtr": "tradier", "spyEma": "tradier" }
 }

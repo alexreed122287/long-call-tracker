@@ -44,9 +44,10 @@ Run the tests:
 
 ## Background tracker
 `.github/workflows/snapshot.yml` runs `snapshot.js` on a two-tier cron and
-commits `positions.json` / `history.json`. It needs repo secrets: `FMP_KEY`,
-`TRADIER_PROXY`, `TRADIER_LIVE_TOKEN` (or `TRADIER_TOKEN`), and optionally
-`ALPACA_KEY` / `ALPACA_SECRET`.
+commits `positions.json` / `history.json`. With the default all-Tradier provider
+config it needs `TRADIER_PROXY` + `TRADIER_LIVE_TOKEN` (or `TRADIER_TOKEN`
+[+ `TRADIER_ENV`]). `FMP_KEY` and `ALPACA_KEY` / `ALPACA_SECRET` are only needed
+if you switch a metric's provider to FMP or Alpaca in `config.json`.
 
 Key functions: `computeATR`, `atrLevels`, `sizePosition`, `pickEntryContract`,
 `pickRollContract`, `evaluateExits`, `applyAction`, `computeCampaignPnl`,

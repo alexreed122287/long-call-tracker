@@ -182,14 +182,12 @@
           <legend>Account &amp; risk</legend>
           <div class="field"><label>Paper account balance</label><input id="s-bal" type="number"></div>
           <div class="field"><label>Risk per trade (fraction)</label><input id="s-risk" type="number" step="0.01"></div>
-          <div class="field"><label>Liquidity min OI</label><input id="s-oi" type="number"></div>
-          <div class="field"><label>Liquidity max spread (fraction)</label><input id="s-spread" type="number" step="0.01"></div>
         </fieldset>
         <fieldset>
           <legend>Providers</legend>
-          <div class="field"><label>Options greeks</label><select id="s-p-opt"><option>tradier</option><option>alpaca</option></select></div>
-          <div class="field"><label>Equity price / ATR</label><select id="s-p-eq"><option>fmp</option><option>tradier</option><option>alpaca</option></select></div>
-          <div class="field"><label>SPY EMA</label><select id="s-p-spy"><option>fmp</option><option>tradier</option><option>alpaca</option></select></div>
+          <div class="field"><label>Options greeks &amp; chains</label><select id="s-p-opt"><option value="tradier">Tradier</option><option value="alpaca">Alpaca</option></select></div>
+          <div class="field"><label>Stock price &amp; ATR</label><select id="s-p-eq"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
+          <div class="field"><label>SPY EMA</label><select id="s-p-spy"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
         </fieldset>
         <fieldset>
           <legend>API keys (this browser only)</legend>

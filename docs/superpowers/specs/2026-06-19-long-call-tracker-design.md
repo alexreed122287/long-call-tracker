@@ -111,8 +111,8 @@ long-call-tracker/
   },
   "providers": {
     "optionsGreeks": "tradier",
-    "equityPriceAtr": "fmp",
-    "spyEma": "fmp"
+    "equityPriceAtr": "tradier",
+    "spyEma": "tradier"
   }
 }
 ```
@@ -123,11 +123,14 @@ adapter (§10a) and can be pointed at `tradier`, `alpaca`, or `fmp`:
 - `equityPriceAtr` — stock price at a moment + daily bars for ATR(14).
 - `spyEma` — SPY daily closes for the 10/20 EMA.
 
-Defaults: **Tradier** for options (only provider that reliably returns greeks +
-marks together; already wired via the proxy), **FMP** for equity price/ATR and
-SPY (proven ATR-as-of-date logic from position-sizer). Alpaca is selectable for
-equities/SPY (free, reliable bars); Tradier can also serve all three if you want
-a single key. Switching a provider only swaps the adapter — no rule changes.
+Defaults: **Tradier for all three** so one key powers everything — greeks
+**must** be Tradier or Alpaca (FMP cannot serve greeks), and Tradier also serves
+stock price/ATR (daily history + timesales) and SPY EMA. **FMP** and **Alpaca**
+remain selectable per metric (e.g. FMP for its ATR-as-of-date intraday). Switching
+a provider only swaps the adapter — no rule changes. Liquidity thresholds
+(`liquidityMinOI` / `liquidityMaxSpreadPct`) live in `config.json` only (not the
+Settings UI) and are used for chain band/illiquid highlighting and roll-liquidity
+checks.
 
 ### `positions.json` — array of **campaigns**
 A *campaign* = one ticker idea and the chain of contract *legs* it rolls through.
@@ -376,5 +379,6 @@ metric on a known fixture. Mirrors position-sizer's pure-math test approach.
    intraday. The regime exit therefore closes all positions on the **last-hour
    evaluation of the day the daily cross occurs**, not the instant it forms.
 4. **Sortino is per-trade in R** (not daily-return based) as the primary figure.
-5. **Default providers:** Tradier (options greeks/marks) + FMP (equity price/ATR
-   + SPY EMAs); Alpaca selectable per data type. Switchable any time in config.
+5. **Default providers:** Tradier for all three metrics (greeks/marks, stock
+   price/ATR, SPY EMA) so one key powers everything; FMP/Alpaca selectable per
+   metric (greeks limited to Tradier/Alpaca). Switchable any time in config.

@@ -176,7 +176,8 @@
 
       getStockPriceAt: function (sym, dateISO, etHHMM) {
         if (equity === 'tradier') {
-          return tradierGet('/v1/markets/timesales?symbol=' + sym + '&interval=5min&start=' + dateISO + ' 09:30&end=' + dateISO + ' 16:00')
+          var tStart = encodeURIComponent(dateISO + ' 09:30'), tEnd = encodeURIComponent(dateISO + ' 16:00');
+          return tradierGet('/v1/markets/timesales?symbol=' + sym + '&interval=5min&start=' + tStart + '&end=' + tEnd)
             .then(function (j) {
               var s = j && j.series && j.series.data; if (!Array.isArray(s)) s = s ? [s] : [];
               var rows = s.map(function (x) { return { date: x.time, close: x.close }; });

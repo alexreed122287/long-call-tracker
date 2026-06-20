@@ -105,6 +105,7 @@ function main() {
     tradierProxy: process.env.TRADIER_PROXY,
     tradierLiveToken: process.env.TRADIER_LIVE_TOKEN,
     tradierToken: process.env.TRADIER_TOKEN,
+    tradierEnv: process.env.TRADIER_ENV,
     alpacaKey: process.env.ALPACA_KEY,
     alpacaSecret: process.env.ALPACA_SECRET
   };
