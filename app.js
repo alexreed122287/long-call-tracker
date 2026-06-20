@@ -120,6 +120,7 @@
     liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10,
     exitStrategy: 'standard',
     takeProfitPct: 0, stopLossPct: 0, trailingStopPct: 0,
+    lastHourOnly: true, regimeExitEnabled: true,
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' },
     providers: { optionsGreeks: 'tradier', equityPriceAtr: 'tradier', spyEma: 'tradier' }
   };
@@ -688,9 +689,19 @@
     var strategy = cfg.exitStrategy || 'standard';
     var rules = EXIT_STRATEGY_RULES[strategy] || EXIT_STRATEGY_RULES.standard;
     var box = $('exit-rules-display'); if (!box) return;
+    var lastHourOn = cfg.lastHourOnly !== false;
+    var regimeOn = cfg.regimeExitEnabled !== false;
     box.innerHTML = rules.map(function (r) {
-      var dimmed = !r.active ? ' style="opacity:0.4"' : '';
-      return '<div class="exit-rule"' + dimmed + '><div class="exit-rule-badge">' + r.badge + ' ' + r.name + (r.active ? '' : ' <span style="font-size:10px;color:var(--muted)">(off)</span>') + '</div><div class="exit-rule-body"><div>' + r.desc + '</div>' + (r.trigger ? '<div class="exit-rule-trigger">⏰ ' + r.trigger + '</div>' : '') + '</div></div>';
+      // override active state based on live toggles
+      var isRegime = r.name === 'Regime exit';
+      var isLastHourRule = ['ATR stop', 'Time roll', 'Winner roll-up'].indexOf(r.name) >= 0;
+      var active = r.active;
+      if (isRegime && !regimeOn) active = false;
+      var dimmed = !active ? ' style="opacity:0.4"' : '';
+      var extraNote = '';
+      if (isLastHourRule && !lastHourOn) extraNote = ' <span style="font-size:10px;color:var(--green)">(all-day)</span>';
+      if (isRegime && !regimeOn) extraNote = ' <span style="font-size:10px;color:var(--muted)">(disabled)</span>';
+      return '<div class="exit-rule"' + dimmed + '><div class="exit-rule-badge">' + r.badge + ' ' + r.name + (active ? '' : ' <span style="font-size:10px;color:var(--muted)">(off)</span>') + extraNote + '</div><div class="exit-rule-body"><div>' + r.desc + '</div>' + (r.trigger ? '<div class="exit-rule-trigger">⏰ ' + (isLastHourRule && !lastHourOn ? 'All day (last-hour restriction disabled)' : r.trigger) + '</div>' : '') + '</div></div>';
     }).join('');
   }
   function onExitStrategyChange() {
@@ -720,6 +731,8 @@
     $('s-take-profit').value = c.takeProfitPct || 0;
     $('s-stop-loss-pct').value = c.stopLossPct || 0;
     $('s-trailing-stop').value = c.trailingStopPct || 0;
+    $('s-last-hour-only').checked = c.lastHourOnly !== false;
+    $('s-regime-exit').checked = c.regimeExitEnabled !== false;
     $('s-p-opt').value = c.providers.optionsGreeks; $('s-p-eq').value = c.providers.equityPriceAtr; $('s-p-spy').value = c.providers.spyEma;
     $('s-fmp').value = lsGet('lct_fmp', ''); $('s-tproxy').value = lsGet('lct_tproxy', '');
     $('s-tlive').value = lsGet('lct_tlive', ''); $('s-ttok').value = lsGet('lct_ttok', '');
@@ -742,6 +755,8 @@
     c.takeProfitPct = parseFloat($('s-take-profit').value) || 0;
     c.stopLossPct = parseFloat($('s-stop-loss-pct').value) || 0;
     c.trailingStopPct = parseFloat($('s-trailing-stop').value) || 0;
+    c.lastHourOnly = $('s-last-hour-only').checked;
+    c.regimeExitEnabled = $('s-regime-exit').checked;
     c.providers = { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value };
     setConfig(c);
     lsSet('lct_fmp', $('s-fmp').value); lsSet('lct_tproxy', $('s-tproxy').value);
