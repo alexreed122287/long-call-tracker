@@ -9,15 +9,23 @@ design.
 
 ## Status
 - [x] Plan 1 — Engine (`engine.js`): pure math/rules, unit-tested.
-- [ ] Plan 2 — Tracker (`dataProvider.js`, `snapshot.js`, GitHub Action).
+- [x] Plan 2 — Tracker (`dataProvider.js`, `snapshot.js`, `.github/workflows/snapshot.yml`).
 - [ ] Plan 3 — Dashboard (`index.html`, `app.js`).
 
-## Engine
-`engine.js` is pure and dependency-free, exported for both Node and the browser.
+## Engine + tracker
+`engine.js` and `dataProvider.js` are pure/dependency-free, exported for both
+Node and the browser. `snapshot.js` is the GitHub Action runner.
 
 Run the tests:
 
-    node test.js
+    node test.js          # engine
+    node test_tracker.js  # data adapters + snapshot orchestration
+
+## Background tracker
+`.github/workflows/snapshot.yml` runs `snapshot.js` on a two-tier cron and
+commits `positions.json` / `history.json`. It needs repo secrets: `FMP_KEY`,
+`TRADIER_PROXY`, `TRADIER_LIVE_TOKEN` (or `TRADIER_TOKEN`), and optionally
+`ALPACA_KEY` / `ALPACA_SECRET`.
 
 Key functions: `computeATR`, `atrLevels`, `sizePosition`, `pickEntryContract`,
 `pickRollContract`, `evaluateExits`, `applyAction`, `computeCampaignPnl`,

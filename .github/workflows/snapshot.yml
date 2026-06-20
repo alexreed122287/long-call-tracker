@@ -1,0 +1,44 @@
+name: snapshot
+
+# Two-tier cron (UTC). ET last hour 15:00-16:00 = 19:00-20:00 UTC (EDT) / 20:00-21:00 UTC (EST).
+on:
+  schedule:
+    - cron: '*/30 13-21 * * 1-5'   # intraday emergency sweep across market hours
+    - cron: '*/5 19-21 * * 1-5'    # dense last-hour pass (rolls / stop / regime)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run snapshot
+        env:
+          FMP_KEY: ${{ secrets.FMP_KEY }}
+          TRADIER_PROXY: ${{ secrets.TRADIER_PROXY }}
+          TRADIER_LIVE_TOKEN: ${{ secrets.TRADIER_LIVE_TOKEN }}
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
+          ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
+        run: node snapshot.js
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add positions.json history.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "snapshot: update tracking state"
+            git push
+          fi

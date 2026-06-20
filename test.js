@@ -194,5 +194,21 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   approx(s.sortino, 0 / 0.9013878, 1e-6, 'scorecard sortino = meanR / downsideDev');
 })();
 
+// computeEMA / regimeBearishCross
+(function () {
+  var ema = E.computeEMA([1, 2, 3, 4, 3, 2], 2);
+  ok(ema[0] === null, 'computeEMA seeds with nulls before period');
+  approx(ema[ema.length - 1], 2.3889, 1e-3, 'computeEMA last value (period 2)');
+  ok(E.regimeBearishCross([1, 2, 3, 4, 3, 2], 2, 3) === true, 'regimeBearishCross true on fresh bearish cross');
+  ok(E.regimeBearishCross([1, 2, 3, 4, 5, 6], 2, 3) === false, 'regimeBearishCross false while trending up');
+})();
+
+// occSymbol / dteBetween
+(function () {
+  eq(E.occSymbol('AAPL', '2026-07-18', 'C', 205), 'AAPL260718C00205000', 'occSymbol builds OCC string');
+  eq(E.occSymbol('spy', '2026-08-21', 'C', 540.5), 'SPY260821C00540500', 'occSymbol handles fractional strike + lowercase');
+  eq(E.dteBetween('2026-06-19', '2026-07-18'), 29, 'dteBetween counts calendar days');
+})();
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

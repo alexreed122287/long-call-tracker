@@ -232,6 +232,42 @@
     };
   }
 
+  function computeEMA(values, period) {
+    if (!values || values.length < period) return [];
+    var k = 2 / (period + 1), out = [], seed = 0, i;
+    for (i = 0; i < period; i++) seed += values[i];
+    seed = seed / period;
+    for (i = 0; i < values.length; i++) {
+      if (i < period - 1) out.push(null);
+      else if (i === period - 1) out.push(seed);
+      else out.push(values[i] * k + out[i - 1] * (1 - k));
+    }
+    return out;
+  }
+
+  function regimeBearishCross(closes, fast, slow) {
+    fast = fast || 10; slow = slow || 20;
+    if (!closes || closes.length < 2) return false;
+    var ef = computeEMA(closes, fast), es = computeEMA(closes, slow);
+    var n = closes.length;
+    var f1 = ef[n - 1], s1 = es[n - 1], f0 = ef[n - 2], s0 = es[n - 2];
+    if (f1 == null || s1 == null || f0 == null || s0 == null) return false;
+    return f0 >= s0 && f1 < s1;
+  }
+
+  function occSymbol(ticker, expISO, type, strike) {
+    var p = expISO.split('-');
+    var yy = p[0].slice(2), mm = p[1], dd = p[2];
+    var ks = ('00000000' + Math.round(strike * 1000)).slice(-8);
+    return ('' + ticker).toUpperCase() + yy + mm + dd + (type === 'P' ? 'P' : 'C') + ks;
+  }
+
+  function dteBetween(todayISO, expISO) {
+    var a = Date.parse(todayISO + 'T00:00:00Z');
+    var b = Date.parse(expISO + 'T00:00:00Z');
+    return Math.round((b - a) / 86400000);
+  }
+
   return {
     computeATR: computeATR,
     atrLevels: atrLevels,
@@ -243,6 +279,10 @@
     evaluateExits: evaluateExits,
     applyAction: applyAction,
     computeCampaignPnl: computeCampaignPnl,
-    scorecard: scorecard
+    scorecard: scorecard,
+    computeEMA: computeEMA,
+    regimeBearishCross: regimeBearishCross,
+    occSymbol: occSymbol,
+    dteBetween: dteBetween
   };
 });

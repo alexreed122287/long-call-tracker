@@ -282,9 +282,11 @@ A thin `dataProvider.js` exposes one interface; each provider (`tradier`,
 
 ```
 getStockPriceAt(symbol, dateET, timeET) -> { price }          // entry-moment fill
+getStockQuote(symbol)                   -> { price }          // live underlying
 getDailyBars(symbol, fromDate, toDate)  -> [{date,o,h,l,c}]    // ATR(14), SPY EMA
-getOptionChain(symbol, expiration)      -> [{strike,bid,ask,mark,delta,oi}]  // greeks
+getOptionChain(symbol, expiration)      -> [{strike,bid,ask,mark,delta,oi}]  // greeks (entry)
 getOptionQuote(occSymbol)               -> { mark, delta, bid, ask, oi }     // live leg mark
+getOptionCandidates(symbol, todayISO)   -> [{strike,expiration,dte,delta,bid,ask,mark,oi}]  // rolls
 ```
 
 Browser reads keys/tokens from `localStorage`; the Action reads the same values
