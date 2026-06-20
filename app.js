@@ -87,9 +87,9 @@
   function getConfig() { return Object.assign({}, DEFAULT_CONFIG, getJSON('lct_config', DEFAULT_CONFIG)); }
   function setConfig(c) { setJSON('lct_config', c); }
   function getPositions() { return getJSON('lct_positions', []); }
-  function setPositions(p) { setJSON('lct_positions', p); markDirty(); }
+  function setPositions(p) { setJSON('lct_positions', p); }
   function getHistory() { return getJSON('lct_history', { events: [], equity: [] }); }
-  function setHistory(h) { setJSON('lct_history', h); markDirty(); }
+  function setHistory(h) { setJSON('lct_history', h); }
   function secrets() {
     return {
       fmpKey: lsGet('lct_fmp', ''), tradierProxy: lsGet('lct_tproxy', ''),
@@ -101,22 +101,8 @@
   function gh() { return { owner: lsGet('lct_gh_owner', ''), repo: lsGet('lct_gh_repo', ''), pat: lsGet('lct_gh_pat', ''), branch: lsGet('lct_gh_branch', 'main') }; }
   function provider() { return DP.createProvider(getConfig(), secrets()); }
 
-  /* ---------- share state badge ---------- */
-  var _isDirty = false;
-  function markDirty() {
-    _isDirty = true;
-    var el = document.getElementById('share-state');
-    if (el) { el.textContent = 'unsaved'; el.className = 'state-badge dirty'; }
-  }
-  function markSynced() {
-    _isDirty = false;
-    var el = document.getElementById('share-state');
-    if (el) { el.textContent = 'synced'; el.className = 'state-badge synced'; }
-  }
-  function markLocal() {
-    var el = document.getElementById('share-state');
-    if (el) { el.textContent = 'local'; el.className = 'state-badge'; }
-  }
+
+
 
   /* ---------- helpers ---------- */
   function $(id) { return document.getElementById(id); }
@@ -134,78 +120,6 @@
   }
   function cstToEt(hhmm) { var pr = (hhmm || '08:45').split(':'); var m = (+pr[0]) * 60 + (+pr[1]) + 60; return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
 
-  /* ---------- shareable URL (no API keys) ---------- */
-  function buildSharePayload() {
-    return {
-      positions: getPositions(),
-      history: getHistory(),
-      config: (function () {
-        var c = getConfig();
-        // strip sensitive data — only share structural config
-        return {
-          accountBalance: c.accountBalance,
-          riskPct: c.riskPct,
-          atrStopMult: c.atrStopMult,
-          atrEmergencyMult: c.atrEmergencyMult,
-          dteRollTrigger: c.dteRollTrigger,
-          rollUpDeltaBand: c.rollUpDeltaBand,
-          rollUpDeltaTarget: c.rollUpDeltaTarget,
-          timeRollMinDelta: c.timeRollMinDelta,
-          timeRollMinDTE: c.timeRollMinDTE,
-          exitStrategy: c.exitStrategy
-        };
-      })()
-    };
-  }
-
-  function generateShareURL() {
-    try {
-      var payload = buildSharePayload();
-      var json = JSON.stringify(payload);
-      var compressed = btoa(unescape(encodeURIComponent(json)));
-      var url = window.location.origin + window.location.pathname + '?share=' + compressed;
-      return url;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function importSharePayload(encoded) {
-    try {
-      var json = decodeURIComponent(escape(atob(encoded)));
-      var payload = JSON.parse(json);
-      if (payload.positions) setPositions(E.dedupeCampaignIds(payload.positions));
-      if (payload.history) setHistory(payload.history);
-      if (payload.config) {
-        var cfg = getConfig();
-        Object.assign(cfg, payload.config);
-        setConfig(cfg);
-        loadSettings();
-      }
-      render();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  function checkURLShare() {
-    var params = new URLSearchParams(window.location.search);
-    var share = params.get('share');
-    if (!share) return;
-    var ok = importSharePayload(share);
-    if (ok) {
-      // remove ?share= from URL without reload
-      var clean = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, '', clean);
-      setStatus('Loaded shared data');
-      markSynced();
-    } else {
-      setStatus('Failed to load shared data');
-    }
-  }
-
-  /* ---------- GitHub contents API ---------- */
   function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
   function b64decode(s) { return decodeURIComponent(escape(atob((s || '').replace(/\n/g, '')))); }
   function ghHeaders(g) { return { 'Authorization': 'Bearer ' + g.pat, 'Accept': 'application/vnd.github+json' }; }
@@ -233,7 +147,7 @@
       var pos = await ghGet('positions.json'); var his = await ghGet('history.json');
       if (pos && pos.json) setPositions(pos.json);
       if (his && his.json) setHistory(his.json);
-      render(); setStatus('pulled from repo'); markSynced();
+      render(); setStatus('pulled from repo');
     } catch (e) { setStatus('pull failed: ' + e.message); }
   }
   async function pushState() {
@@ -243,7 +157,7 @@
       await ghPut('positions.json', getPositions(), pos && pos.sha, 'dashboard: update positions');
       var his = await ghGet('history.json');
       await ghPut('history.json', getHistory(), his && his.sha, 'dashboard: update history');
-      setStatus('pushed to repo'); markSynced();
+      setStatus('pushed to repo');
     } catch (e) { setStatus('push failed: ' + e.message); }
   }
 
@@ -615,7 +529,7 @@
   }
 
   /* ---------- render ---------- */
-  function render() { renderWatchlist(); renderPositions(); renderScorecard(); renderCalendar(); updateShareBanner(); }
+  function render() { renderWatchlist(); renderPositions(); renderScorecard(); renderCalendar(); }
 
   function renderPositions() {
     var positions = getPositions();
@@ -852,23 +766,6 @@
   }
 
   /* ---------- share banner ---------- */
-  function updateShareBanner() {
-    var banner = $('share-banner');
-    if (!banner) return;
-    var positions = getPositions();
-    if (positions.length > 0) {
-      var url = generateShareURL();
-      if (url) {
-        banner.style.display = 'flex';
-        $('share-url-text').textContent = url.length > 80 ? url.slice(0, 77) + '...' : url;
-        $('share-url-text').title = url;
-      }
-    } else {
-      banner.style.display = 'none';
-    }
-  }
-
-  /* ---------- settings ---------- */
   function renderExitRules() {
     var cfg = getConfig();
     var strategy = cfg.exitStrategy || 'standard';
@@ -972,9 +869,6 @@
     // repair duplicate IDs
     setPositions(E.dedupeCampaignIds(getPositions()));
 
-    // check for shared state in URL before rendering
-    checkURLShare();
-
     // tabs
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
 
@@ -985,20 +879,6 @@
     $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
     $('pos-clear').onclick = clearAllPositions;
-
-    // share banner (positions tab)
-    $('copy-share-url').onclick = function () {
-      var url = generateShareURL();
-      if (!url) return;
-      navigator.clipboard.writeText(url).then(function () {
-        $('copy-share-url').textContent = '✅ Copied!';
-        setTimeout(function () { $('copy-share-url').textContent = 'Copy link'; }, 2000);
-      }).catch(function () {
-        $('share-url-input').value = url;
-        $('share-url-box').style.display = 'block';
-      });
-    };
-    $('refresh-share-url').onclick = function () { updateShareBanner(); };
 
     // scorecard — nothing extra needed
 
@@ -1021,30 +901,16 @@
     $('gh-pull').onclick = pullFromRepo;
     $('gh-push').onclick = pushState;
 
-    // settings share
-    $('gen-share-url').onclick = function () {
-      var url = generateShareURL();
-      if (!url) { alert('No data to share yet.'); return; }
-      $('share-url-input').value = url;
-      $('share-url-box').style.display = 'block';
+    // simple copy app URL
+    $('copy-app-url').onclick = function () {
+      var url = 'https://alexreed122287.github.io/long-call-tracker/';
       navigator.clipboard.writeText(url).then(function () {
-        $('gen-share-url').textContent = '✅ Link copied!';
-        setTimeout(function () { $('gen-share-url').textContent = 'Generate shareable link'; }, 3000);
-      }).catch(function () {});
-    };
-    $('import-share-url').onclick = function () {
-      var url = prompt('Paste a shareable link:');
-      if (!url) return;
-      try {
-        var params = new URLSearchParams(url.split('?')[1] || '');
-        var share = params.get('share');
-        if (!share) throw new Error('no share param');
-        var ok = importSharePayload(share);
-        if (ok) { alert('Data imported successfully!'); markSynced(); }
-        else alert('Failed to import. The link may be invalid or corrupted.');
-      } catch (e) {
-        alert('Invalid link: ' + e.message);
-      }
+        $('copy-app-url').textContent = '✅ Copied!';
+        setTimeout(function () { $('copy-app-url').textContent = '📋 Copy link'; }, 2000);
+      }).catch(function () {
+        $('share-app-url').select();
+        document.execCommand('copy');
+      });
     };
 
     // watchlist
