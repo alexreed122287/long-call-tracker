@@ -10,7 +10,14 @@ design.
 ## Status
 - [x] Plan 1 — Engine (`engine.js`): pure math/rules, unit-tested.
 - [x] Plan 2 — Tracker (`dataProvider.js`, `snapshot.js`, `.github/workflows/snapshot.yml`).
-- [ ] Plan 3 — Dashboard (`index.html`, `app.js`).
+- [x] Plan 3 — Dashboard (`index.html`, `app.js`): entry form, positions table, scorecard, GitHub PAT sync.
+
+## Dashboard
+Open `index.html` (served statically, or via GitHub Pages). Set your API keys and
+GitHub PAT in the Settings tab (stored in this browser only). Add trades on the
+Positions tab; the Scorecard tab shows win rate, profit factor, Sortino, Sharpe,
+drawdown, expectancy (R) and the equity curve. While the tab is open it polls and
+applies the exit rules itself; the GitHub Action does the same while you're away.
 
 ## Engine + tracker
 `engine.js` and `dataProvider.js` are pure/dependency-free, exported for both
