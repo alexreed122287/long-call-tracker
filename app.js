@@ -158,16 +158,26 @@
     } catch (e) { empty.style.display = 'block'; empty.textContent = e.message; }
   }
 
+  function updateSelectSummary() {
+    if (!picker.entry || !picker.selected) return;
+    var cfg = getConfig(), e = picker.entry, c = picker.selected.contract, exp = picker.selected.expiration;
+    var override = parseFloat($('t-prem').value);
+    var mark = isFinite(override) ? override : c.mark;
+    var budget = cfg.accountBalance * cfg.riskPct;
+    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: mark });
+    $('t-contracts').textContent = size.contracts;
+    $('select-summary').innerHTML = e.ticker + ' ' + c.strike + 'C ' + exp +
+      ' &middot; ' + E.dteBetween(e.date, exp) + 'd &middot; &Delta; ' + fmt2(c.delta) +
+      ' &middot; total premium ' + fmtMoney(size.premium) +
+      ' &middot; risk budget ' + fmtMoney(budget) + ' at -1 ATR stop';
+  }
+
   function selectContract(c, exp, tr) {
     picker.selected = { contract: c, expiration: exp };
     Array.prototype.forEach.call($('chain-table').querySelectorAll('tr.selected'), function (x) { x.classList.remove('selected'); });
     tr.classList.add('selected');
-    var cfg = getConfig(), e = picker.entry, budget = cfg.accountBalance * cfg.riskPct;
-    var size = E.sizePosition({ budget: budget, delta: c.delta, atr: e.atr, entryMark: c.mark });
-    $('select-summary').innerHTML = 'Selected <strong>' + e.ticker + ' ' + c.strike + 'C ' + exp + '</strong> (' +
-      E.dteBetween(e.date, exp) + 'd, &Delta; ' + fmt2(c.delta) + ') &middot; <strong>' + size.contracts +
-      '</strong> contracts &middot; premium ' + fmtMoney(size.premium) + ' &middot; risk ' + fmtMoney(budget) + ' at the -1 ATR stop';
     $('t-prem').value = fmt2(c.mark);
+    updateSelectSummary();
     $('select-box').style.display = 'block';
   }
 
@@ -570,6 +580,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
     $('t-load').onclick = loadChain;
     $('t-add').onclick = addSelected;
+    $('t-prem').oninput = updateSelectSummary;
     $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
     $('pos-clear').onclick = clearAllPositions;
@@ -590,5 +601,5 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
-  window.LCT = { tick: tick, render: render }; // for manual/debug use
+  window.LCT = { tick: tick, render: render };
 })();

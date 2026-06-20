@@ -137,8 +137,12 @@
         </div>
         <div id="chain-empty" class="hint">Pick an expiration to load its call strikes.</div>
         <div id="select-box" style="display:none;margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px">
-          <div id="select-summary"></div>
-          <div class="row" style="margin-top:10px;align-items:flex-end">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+            <div style="font-size:28px;font-weight:700;color:var(--accent);line-height:1" id="t-contracts">-</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.4">contracts<br>to buy</div>
+            <div id="select-summary" class="hint" style="margin:0;flex:1"></div>
+          </div>
+          <div class="row" style="margin-top:8px;align-items:flex-end">
             <div class="field"><label>Entry premium (override)</label><input id="t-prem" class="sm"></div>
             <button class="btn" id="t-add">Add &amp; track</button>
           </div>
