@@ -127,7 +127,7 @@
 <header>
   <h1>Long-Call Tracker</h1>
   <span class="sub">DITM long calls · ATR exit engine · live scorecard</span>
-  <span id="share-state" class="state-badge">local</span>
+
   <span id="status"></span>
 </header>
 <nav>
@@ -172,12 +172,7 @@
 
   <!-- ===== POSITIONS ===== -->
   <section id="positions">
-    <div id="share-banner" style="display:none">
-      <span>🔗 Shareable link (no API keys included):</span>
-      <span class="share-url" id="share-url-text"></span>
-      <button class="ghost" id="copy-share-url">Copy link</button>
-      <button class="ghost" id="refresh-share-url">Refresh</button>
-    </div>
+
     <div class="card">
       <h2>Add theoretical trade</h2>
       <div class="row">
@@ -344,15 +339,11 @@
         </fieldset>
 
         <fieldset>
-          <legend>Share / Export</legend>
-          <p class="hint" style="margin:0 0 10px">Generate a shareable URL that encodes positions &amp; history (no API keys). Recipients can import the state into their own browser.</p>
-          <div class="row">
-            <button class="btn" id="gen-share-url">Generate shareable link</button>
-            <button class="ghost" id="import-share-url">Import from URL</button>
-          </div>
-          <div id="share-url-box" style="display:none;margin-top:10px">
-            <input id="share-url-input" style="width:100%;font-size:12px;font-family:monospace" readonly>
-            <div class="hint" style="margin-top:4px">Copy this URL to share your positions &amp; P&amp;L history. API keys are never included.</div>
+          <legend>Share this tool</legend>
+          <p class="hint" style="margin:0 0 10px">Share this tracker with anyone — they connect their own API keys and track their own picks. Nothing from your account is included.</p>
+          <div class="row" style="align-items:center;gap:10px">
+            <input id="share-app-url" style="flex:1;font-size:12px;font-family:monospace" readonly value="https://alexreed122287.github.io/long-call-tracker/">
+            <button class="btn" id="copy-app-url">📋 Copy link</button>
           </div>
         </fieldset>
       </div>
