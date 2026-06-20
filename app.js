@@ -412,6 +412,20 @@
     } catch (e) { box.innerHTML = '<span class="err">' + e.message + '</span>'; }
   }
 
+  function deleteCampaign(id) {
+    if (!window.confirm('Delete this campaign from the record? This cannot be undone.')) return;
+    setPositions(getPositions().filter(function (c) { return c.id !== id; }));
+    var h = getHistory(); h.events = (h.events || []).filter(function (e) { return e.campaign !== id; }); setHistory(h);
+    if (gh().pat) pushState();
+    render();
+  }
+  function clearAllPositions() {
+    if (!window.confirm('Clear ALL positions, events, and the equity curve? This cannot be undone.')) return;
+    setPositions([]); setHistory({ events: [], equity: [] });
+    if (gh().pat) pushState();
+    render();
+  }
+
   /* ---------- render ---------- */
   function render() { renderWatchlist(); renderPositions(); renderScorecard(); }
 
@@ -441,11 +455,14 @@
         '<td class="' + signClass(pnl) + '">' + (pnl != null ? fmtMoney(pnl) : '-') + '</td>' +
         '<td class="' + signClass(r) + '">' + (r != null ? (r > 0 ? '+' : '') + r.toFixed(2) + 'R' : '-') + '</td>' +
         '<td>' + (c.legs.length - 1) + '</td>' +
-        '<td>' + (c.status === 'open' ? '<button class="danger" data-close="' + c.id + '">Close</button>' : '') + '</td>';
+        '<td>' + (c.status === 'open' ? '<button class="danger" data-close="' + c.id + '">Close</button> ' : '') + '<button class="danger" data-del="' + c.id + '" title="delete from record">x</button></td>';
       tb.appendChild(tr);
     });
     Array.prototype.forEach.call(tb.querySelectorAll('[data-close]'), function (b) {
       b.onclick = function () { closeCampaign(b.getAttribute('data-close')); };
+    });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-del]'), function (b) {
+      b.onclick = function () { deleteCampaign(b.getAttribute('data-del')); };
     });
   }
 
@@ -552,6 +569,7 @@
     $('t-add').onclick = addSelected;
     $('t-exp').onchange = onExpiration;
     $('refresh').onclick = tick;
+    $('pos-clear').onclick = clearAllPositions;
     $('s-save').onclick = saveSettings;
     $('s-test').onclick = testConnection;
     $('gh-pull').onclick = pullFromRepo;

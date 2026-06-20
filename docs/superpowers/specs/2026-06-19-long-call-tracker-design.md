@@ -350,7 +350,9 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs
   (strike/exp/delta/DTE), contracts, mark, unrealized P&L ($ and R), # rolls,
   next-trigger hint. **Add-trade via an option-chain picker** at top (load chain →
   pick expiration → click a strike, with band/liquidity highlighting). Manual
-  "Close now" per row.
+  **Close** per open row; per-row **delete (×)** removes a campaign from the record
+  (and its events); a **Clear all** button wipes all positions + history. Both
+  deletes are confirm-gated.
 - **Scorecard** — the §11 metrics + an equity curve and exit-reason breakdown.
 - **Settings** — paper-account balance, risk %, thresholds, **provider selection**
   (Tradier/Alpaca/FMP per data type), and the last-hour window (writes
