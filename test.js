@@ -227,5 +227,17 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(E.pickDefaultExpiration(['2026-07-17', '2026-08-21'], '2026-07-15'), '2026-08-21', 'pickDefaultExpiration skips monthly within 7 DTE');
 })();
 
+// windowStrikes
+(function () {
+  var chain = [], i;
+  for (i = 90; i <= 130; i++) chain.push({ strike: i });
+  var w = E.windowStrikes(chain, 110.4, 15, 15);
+  eq(w.length, 30, 'windowStrikes returns 30 strikes');
+  eq(w[0].strike, 96, 'windowStrikes lowest = 15 strikes below spot');
+  eq(w[w.length - 1].strike, 125, 'windowStrikes highest = 15 strikes above spot');
+  eq(E.windowStrikes([{ strike: 100 }, { strike: 105 }, { strike: 110 }], 104, 15, 15).length, 3, 'windowStrikes returns all when fewer than the window');
+  eq(E.windowStrikes(chain, null, 15, 15).length, 30, 'windowStrikes falls back to first 30 without a ref price');
+})();
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

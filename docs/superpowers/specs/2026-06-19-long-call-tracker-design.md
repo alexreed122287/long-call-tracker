@@ -183,7 +183,8 @@ The campaign is the unit the scorecard counts as one "trade."
 2. Tool fetches the **stock price at that moment** (FMP 5-min intraday, CST→ET),
    **ATR(14) as of the entry date** (FMP daily), and the **expiration list**
    (`getExpirations`).
-3. Pick an expiration → the **call chain** loads (strike, delta, bid/ask/mark, OI,
+3. Pick an expiration → the **call chain** loads, windowed to **15 ITM + 15 OTM
+   strikes** (30 total) around the underlying (strike, delta, bid/ask/mark, OI,
    spread). Strikes in the **0.65–0.85 band are highlighted** and **illiquid** ones
    (OI<500 or spread>10%) are dimmed/flagged. You **click the strike** you want —
    no keying delta/DTE.
@@ -339,8 +340,9 @@ Single page, position-sizer styling (no icon glyphs on labels), tabs
   **Refresh** enriches each row with last price, daily % change, ATR(14), and the
   **suggested 0.65–0.85 call** near a chosen **target expiration** (a dropdown of
   all weekly + monthly dates, labeled W/M; defaults to the nearest monthly that is
-  more than 7 DTE out). **Chain** expands the full option
-  chain inline (per-expiration, band/liquidity highlighted) for a quick look.
+  more than 7 DTE out). **Chain** expands the option
+  chain inline (per-expiration, 15 ITM + 15 OTM around spot, band/liquidity
+  highlighted) for a quick look.
   **Buy** jumps to Positions with the ticker prefilled and the chain auto-loaded.
   Persists in `localStorage`.
 - **Positions** — table of campaigns: ticker, status, entry, current stock vs

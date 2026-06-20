@@ -268,6 +268,18 @@
     return Math.round((b - a) / 86400000);
   }
 
+  function windowStrikes(chain, refPrice, itm, otm) {
+    // For calls: ITM = strike <= underlying, OTM = strike > underlying.
+    // Returns up to itm strikes just below/at spot + otm strikes just above, sorted.
+    itm = (itm == null) ? 15 : itm;
+    otm = (otm == null) ? 15 : otm;
+    var sorted = (chain || []).slice().sort(function (a, b) { return a.strike - b.strike; });
+    if (refPrice == null || !isFinite(refPrice)) return sorted.slice(0, itm + otm);
+    var below = [], above = [], i;
+    for (i = 0; i < sorted.length; i++) { if (sorted[i].strike <= refPrice) below.push(sorted[i]); else above.push(sorted[i]); }
+    return below.slice(Math.max(0, below.length - itm)).concat(above.slice(0, otm));
+  }
+
   function isMonthlyExpiration(dateISO) {
     // Standard equity monthly = 3rd Friday of the month (Friday, day-of-month 15-21).
     var d = new Date(Date.parse(dateISO + 'T00:00:00Z'));
@@ -312,6 +324,7 @@
     dteBetween: dteBetween,
     parseTickerList: parseTickerList,
     isMonthlyExpiration: isMonthlyExpiration,
-    pickDefaultExpiration: pickDefaultExpiration
+    pickDefaultExpiration: pickDefaultExpiration,
+    windowStrikes: windowStrikes
   };
 });

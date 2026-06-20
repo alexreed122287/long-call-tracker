@@ -132,7 +132,7 @@
     var empty = $('chain-empty'); empty.style.display = 'block'; empty.textContent = 'loading ' + exp + '...';
     try {
       var cfg = getConfig(), p = provider();
-      var chain = (await p.getOptionChain(picker.entry.ticker, exp) || []).slice().sort(function (a, b) { return a.strike - b.strike; });
+      var chain = E.windowStrikes(await p.getOptionChain(picker.entry.ticker, exp) || [], picker.entry.price, 15, 15);
       if (!chain.length) { empty.textContent = 'no calls for ' + exp; return; }
       empty.style.display = 'none';
       var band = cfg.rollUpDeltaBand || [0.65, 0.85];
@@ -386,19 +386,20 @@
       var exps = (await p.getExpirations(ticker)).filter(function (d) { return E.dteBetween(today, d) > 0; });
       if (!exps.length) { td.innerHTML = '<span class="err">no expirations</span>'; return; }
       var dte = selectedTargetDte(), sel = nearestExp(exps, today, dte);
+      var price = null; try { price = (await p.getStockQuote(ticker)).price; } catch (e) {}
       td.innerHTML = '<div class="row" style="align-items:flex-end;margin-bottom:8px"><div class="field"><label>Expiration</label><select class="ic-exp">' +
         exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd)</option>'; }).join('') +
         '</select></div></div><div class="ic-table"></div>';
       var expSel = td.querySelector('.ic-exp'), box = td.querySelector('.ic-table');
-      expSel.onchange = function () { drawInlineStrikes(ticker, expSel.value, box); };
-      drawInlineStrikes(ticker, sel, box);
+      expSel.onchange = function () { drawInlineStrikes(ticker, expSel.value, box, price); };
+      drawInlineStrikes(ticker, sel, box, price);
     } catch (e) { td.innerHTML = '<span class="err">' + e.message + '</span>'; }
   }
-  async function drawInlineStrikes(ticker, exp, box) {
+  async function drawInlineStrikes(ticker, exp, box, refPrice) {
     box.innerHTML = '<div class="hint">loading ' + exp + '...</div>';
     var cfg = getConfig(), p = provider();
     try {
-      var chain = (await p.getOptionChain(ticker, exp) || []).slice().sort(function (a, b) { return a.strike - b.strike; });
+      var chain = E.windowStrikes(await p.getOptionChain(ticker, exp) || [], refPrice, 15, 15);
       if (!chain.length) { box.innerHTML = '<span class="hint">no calls for ' + exp + '</span>'; return; }
       var band = cfg.rollUpDeltaBand || [0.65, 0.85];
       var rows = chain.map(function (c) {
