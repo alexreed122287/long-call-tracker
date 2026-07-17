@@ -250,6 +250,49 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(dirty[1].id, 'AAPL-2026-06-19-2', 'dedupe does not mutate the input');
 })();
 
+// prevCloseFromBars — intraday history includes today's partial bar
+(function () {
+  var bars = [
+    { date: '2026-07-15', o: 1, h: 1, l: 1, c: 101 },
+    { date: '2026-07-16', o: 1, h: 1, l: 1, c: 102 },
+    { date: '2026-07-17', o: 1, h: 1, l: 1, c: 103 }   // today, in-progress
+  ];
+  eq(E.prevCloseFromBars(bars, '2026-07-17'), 102, 'prevCloseFromBars skips today partial bar');
+  eq(E.prevCloseFromBars(bars, '2026-07-18'), 103, 'prevCloseFromBars uses last bar when all are past');
+  eq(E.prevCloseFromBars([], '2026-07-17'), null, 'prevCloseFromBars null on empty');
+  eq(E.prevCloseFromBars([{ date: '2026-07-17', c: 103 }], '2026-07-17'), null, 'prevCloseFromBars null when only today exists');
+})();
+
+// gapStats
+(function () {
+  var g = E.gapStats(105, 100, 2);
+  approx(g.gapPct, 5, 1e-9, 'gapStats pct = (last-prev)/prev*100');
+  approx(g.gapATR, 2.5, 1e-9, 'gapStats ATR multiple = (last-prev)/atr');
+  eq(E.gapStats(105, null, 2), { gapPct: null, gapATR: null }, 'gapStats null without prevClose');
+  eq(E.gapStats(105, 100, null).gapATR, null, 'gapStats null ATR multiple without atr');
+  approx(E.gapStats(95, 100, 2).gapATR, -2.5, 1e-9, 'gapStats negative on gap-down');
+})();
+
+// rankPremarket — pre-market scan ranking
+(function () {
+  var items = [
+    { ticker: 'FLAT', last: 100, prevClose: 100, atr: 2 },
+    { ticker: 'BIGGAP', last: 106, prevClose: 100, atr: 4 },   // +1.5 ATR
+    { ticker: 'NODATA', last: null, prevClose: null, atr: null },
+    { ticker: 'SMALLGAP', last: 100.5, prevClose: 100, atr: 5 }, // +0.1 ATR
+    { ticker: 'DOWN', last: 95, prevClose: 100, atr: 2 }        // -2.5 ATR
+  ];
+  var r = E.rankPremarket(items, 0.25);
+  eq(r.map(function (x) { return x.ticker; }), ['BIGGAP', 'SMALLGAP', 'FLAT', 'DOWN', 'NODATA'],
+     'rankPremarket sorts by gap ATRs desc, missing data last');
+  eq(r[0].pm.buy, true, 'rankPremarket flags gap-up >= threshold as buy');
+  eq(r[1].pm.buy, false, 'rankPremarket no flag below threshold');
+  eq(r[3].pm.buy, false, 'rankPremarket never flags gap-downs');
+  approx(r[0].pm.gapATR, 1.5, 1e-9, 'rankPremarket computes ATR multiple');
+  eq(items[0].pm, undefined, 'rankPremarket does not mutate input');
+  eq(E.rankPremarket([], null).length, 0, 'rankPremarket empty input');
+})();
+
 // isMonthlyExpiration / pickDefaultExpiration
 (function () {
   ok(E.isMonthlyExpiration('2026-07-17') === true, 'isMonthlyExpiration true for 3rd Friday');

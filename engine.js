@@ -337,6 +337,47 @@
     return result;
   }
 
+  // Last close strictly BEFORE todayISO. During a live session the provider's
+  // daily history includes today's in-progress bar, so bars[len-1] is NOT the
+  // prior close — using it makes day-change read ~0 intraday.
+  function prevCloseFromBars(bars, todayISO) {
+    for (var i = (bars || []).length - 1; i >= 0; i--) {
+      if (bars[i] && bars[i].date && bars[i].date < todayISO && isFinite(bars[i].c)) return bars[i].c;
+    }
+    return null;
+  }
+
+  function gapStats(last, prevClose, atr) {
+    if (last == null || prevClose == null || !isFinite(last) || !isFinite(prevClose) || prevClose <= 0) {
+      return { gapPct: null, gapATR: null };
+    }
+    var gapPct = (last - prevClose) / prevClose * 100;
+    var gapATR = (atr != null && isFinite(atr) && atr > 0) ? (last - prevClose) / atr : null;
+    return { gapPct: gapPct, gapATR: gapATR };
+  }
+
+  // Rank watchlist items for the pre-market scan: strongest gap-up first,
+  // measured in ATRs so a $2 gap on a quiet name outranks a $2 gap on a wild
+  // one. Items missing data sink to the bottom. Returns a new array; marks
+  // pm.buy on gap-ups of at least minGapAtr ATRs (default 0.25).
+  function rankPremarket(items, minGapAtr) {
+    var thr = (minGapAtr != null && isFinite(minGapAtr)) ? minGapAtr : 0.25;
+    var out = (items || []).map(function (it) {
+      var copy = {}; for (var k in it) copy[k] = it[k];
+      var g = gapStats(it.last, it.prevClose, it.atr);
+      copy.pm = { gapPct: g.gapPct, gapATR: g.gapATR, buy: (g.gapATR != null && g.gapATR >= thr) };
+      return copy;
+    });
+    out.sort(function (a, b) {
+      var ga = a.pm.gapATR, gb = b.pm.gapATR;
+      if (ga == null && gb == null) return 0;
+      if (ga == null) return 1;
+      if (gb == null) return -1;
+      return gb - ga;
+    });
+    return out;
+  }
+
   function parseTickerList(text) {
     var raw = ('' + (text || '')).toUpperCase().split(/[^A-Z0-9.\-]+/);
     var seen = {}, out = [], i;
@@ -364,6 +405,9 @@
     occSymbol: occSymbol,
     dteBetween: dteBetween,
     parseTickerList: parseTickerList,
+    prevCloseFromBars: prevCloseFromBars,
+    gapStats: gapStats,
+    rankPremarket: rankPremarket,
     nextCampaignId: nextCampaignId,
     dedupeCampaignIds: dedupeCampaignIds,
     isMonthlyExpiration: isMonthlyExpiration,

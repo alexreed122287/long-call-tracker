@@ -43,7 +43,7 @@
 
   function parseFmpQuotePrice(a) {
     var q = (a || [])[0] || {};
-    return { price: +q.price };
+    return { price: +q.price, prevClose: (q.previousClose != null) ? +q.previousClose : null };
   }
 
   function parseFmpSearch(arr) {
@@ -108,7 +108,10 @@
   function parseTradierQuotePrice(json) {
     var q = json && json.quotes && json.quotes.quote;
     if (Array.isArray(q)) q = q[0];
-    return { price: q ? (+q.last || +q.close || 0) : 0 };
+    return {
+      price: q ? (+q.last || +q.close || 0) : 0,
+      prevClose: (q && q.prevclose != null) ? +q.prevclose : null
+    };
   }
 
   function parseAlpacaBars(json) {

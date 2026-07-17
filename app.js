@@ -14,7 +14,7 @@
     accountBalance: 1000000, riskPct: 0.05, atrStopMult: 1, atrEmergencyMult: 3, atrRollUpStep: 1,
     rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75, dteRollTrigger: 7,
     timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
-    liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10,
+    liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10, premarketMinGapAtr: 0.25,
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' },
     providers: { optionsGreeks: 'tradier', equityPriceAtr: 'tradier', spyEma: 'tradier' }
   };
@@ -339,8 +339,10 @@
         var q = await p.getStockQuote(it.ticker);
         var bars = await p.getDailyBars(it.ticker, isoMinusDays(today, 40), today);
         var atr = E.computeATR(bars, 14);
-        var prevClose = bars.length ? bars[bars.length - 1].c : null;
-        it.last = q.price; it.atr = isFinite(atr) ? atr : null;
+        // quote's own prevclose is authoritative; bars fallback must skip
+        // today's in-progress bar or intraday day-change reads ~0
+        var prevClose = (q.prevClose != null) ? q.prevClose : E.prevCloseFromBars(bars, today);
+        it.last = q.price; it.atr = isFinite(atr) ? atr : null; it.prevClose = prevClose;
         it.dayPct = (prevClose && q.price) ? ((q.price - prevClose) / prevClose * 100) : null;
         try {
           var exps = (await p.getExpirations(it.ticker)).filter(function (d) { return E.dteBetween(today, d) > 0; });
@@ -356,6 +358,21 @@
     }
     setWatchlist(w); $('w-msg').textContent = 'refreshed ' + w.length + ' ticker(s)'; renderWatchlist();
   }
+  async function premarketScan() {
+    await refreshWatchlist();
+    var w = getWatchlist();
+    if (!w.length) return;
+    var cfg = getConfig();
+    var ranked = E.rankPremarket(w, cfg.premarketMinGapAtr);
+    setWatchlist(ranked);
+    var buys = ranked.filter(function (it) { return it.pm && it.pm.buy; });
+    var now = etNow(), pre = now.minutes < 9 * 60 + 30;
+    $('w-msg').textContent = (pre ? 'Pre-market scan: ' : 'Gap scan (regular session): ') +
+      (buys.length ? (buys.length + ' candidate(s) gapping up >= ' + (cfg.premarketMinGapAtr != null ? cfg.premarketMinGapAtr : 0.25) + ' ATR — top: ' +
+        buys.slice(0, 3).map(function (it) { return it.ticker; }).join(', ')) : 'no gap-ups above the ATR threshold') +
+      (pre ? '. Option marks/greeks are prior-close until the 8:30 CT open.' : '');
+    renderWatchlist();
+  }
   function removeTicker(t) { setWatchlist(getWatchlist().filter(function (it) { return it.ticker !== t; })); renderWatchlist(); }
   function clearWatchlist() { setWatchlist([]); $('w-results').innerHTML = ''; renderWatchlist(); }
   function buyFromWatchlist(t) { showTab('positions'); $('t-ticker').value = t; $('t-date').value = isoToday(); loadChain(); }
@@ -365,9 +382,10 @@
     w.forEach(function (it) {
       var sug = it.sug ? (it.sug.strike + 'C / ' + fmt2(it.sug.delta) + ' / ' + fmt2(it.sug.mark) + ' / ' + it.sug.exp) : (it.err ? ('<span class="err">' + it.err + '</span>') : '-');
       var pct = (it.dayPct != null) ? ('<span class="' + signClass(it.dayPct) + '">' + (it.dayPct > 0 ? '+' : '') + it.dayPct.toFixed(2) + '%</span>') : '-';
+      if (it.pm && it.pm.gapATR != null) pct += ' <span class="hint">' + (it.pm.gapATR > 0 ? '+' : '') + it.pm.gapATR.toFixed(2) + ' ATR</span>';
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td><strong>' + it.ticker + '</strong></td>' +
+        '<td><strong>' + it.ticker + '</strong>' + (it.pm && it.pm.buy ? '<span class="tag">PM BUY</span>' : '') + '</td>' +
         '<td>' + (it.last != null ? fmt2(it.last) : '-') + '</td>' +
         '<td>' + pct + '</td>' +
         '<td>' + (it.atr != null ? fmt2(it.atr) : '-') + '</td>' +
@@ -593,6 +611,7 @@
     $('w-search-btn').onclick = doSearch;
     $('w-search').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
     $('w-refresh').onclick = refreshWatchlist;
+    $('w-scan').onclick = premarketScan;
     $('w-clear').onclick = clearWatchlist;
     loadSettings();
     render();

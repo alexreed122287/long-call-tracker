@@ -12,6 +12,7 @@
   "timeRollDeltaTarget": 0.70,
   "liquidityMinOI": 500,
   "liquidityMaxSpreadPct": 0.10,
+  "premarketMinGapAtr": 0.25,
   "timing": { "lastHourStartET": "15:00", "marketCloseET": "16:00" },
   "providers": { "optionsGreeks": "tradier", "equityPriceAtr": "tradier", "spyEma": "tradier" }
 }
