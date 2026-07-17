@@ -11,32 +11,26 @@
     --red: #f85149; --amber: #d29922;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex;
-    align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
   header h1 { font-size: 17px; margin: 0; font-weight: 650; }
   header .sub { color: var(--muted); font-size: 12px; }
   #status { margin-left: auto; font-size: 12px; color: var(--muted); }
-  nav { display: flex; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid var(--line); }
-  nav button { background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent;
-    padding: 8px 14px; cursor: pointer; font-size: 13px; }
+  nav { display: flex; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  nav button { background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; font-size: 13px; }
   nav button.active { color: var(--fg); border-bottom-color: var(--accent); }
   main { padding: 18px 20px; max-width: 1200px; }
-  section { display: none; }
-  section.active { display: block; }
+  section { display: none; } section.active { display: block; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  input, select, textarea { background: var(--panel2); color: var(--fg); border: 1px solid var(--line);
-    border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit; }
-  .chip { display: inline-block; background: var(--panel2); border: 1px solid var(--line); color: var(--fg);
-    border-radius: 99px; padding: 4px 10px; margin: 3px 4px 0 0; cursor: pointer; font-size: 12px; }
+  input, select, textarea { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit; }
+  .chip { display: inline-block; background: var(--panel2); border: 1px solid var(--line); color: var(--fg); border-radius: 99px; padding: 4px 10px; margin: 3px 4px 0 0; cursor: pointer; font-size: 12px; }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
   input[type=number] { width: 110px; } input.sm { width: 90px; }
-  button.btn { background: var(--accent); color: #04121f; border: 0; border-radius: 6px;
-    padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
-  button.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); }
+  button.btn { background: var(--accent); color: #04121f; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; }
+  button.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
   button.danger { background: transparent; color: var(--red); border: 1px solid var(--line); padding: 4px 9px; border-radius: 5px; cursor: pointer; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
   .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
@@ -56,7 +50,7 @@
   .pill.open { color: var(--accent); border-color: var(--accent); }
   .pill.closed { color: var(--muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-  .metric { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .metric { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; position: relative; cursor: help; }
   .metric .v { font-size: 22px; font-weight: 650; }
   .metric .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
   .hint { color: var(--muted); font-size: 12px; }
@@ -67,166 +61,453 @@
   fieldset legend { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 0 6px; }
   fieldset .field { margin-bottom: 8px; }
   fieldset input, fieldset select { width: 100%; }
-  code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  /* Tooltip */
+  .tooltip { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e2c3d; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 220px; font-size: 12px; color: var(--fg); line-height: 1.5; z-index: 100; pointer-events: none; text-align: left; box-shadow: 0 4px 16px rgba(0,0,0,.5); white-space: normal; }
+  .metric:hover .tooltip { display: block; }
+  /* Exit rules */
+  .exit-rule { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .exit-rule:last-child { border-bottom: 0; }
+  .exit-rule-badge { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); color: var(--amber); white-space: nowrap; }
+  .exit-rule-body { flex: 1; }
+  .exit-rule-trigger { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  /* Calendar */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 12px; }
+  .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 4px; }
+  .cal-header div { text-align: center; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; padding: 4px 0; }
+  .cal-cell { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-height: 54px; font-size: 11px; }
+  .cal-cell.other-month { opacity: .3; }
+  .cal-cell.has-pnl.pos { border-color: rgba(63,185,80,.4); background: rgba(63,185,80,.07); cursor: pointer; }
+  .cal-cell.has-pnl.neg { border-color: rgba(248,81,73,.4); background: rgba(248,81,73,.07); cursor: pointer; }
+  .cal-cell .cal-day { color: var(--muted); font-size: 10px; font-weight: 600; margin-bottom: 3px; }
+  .cal-cell .cal-pnl { font-size: 12px; font-weight: 700; }
+  .cal-nav { display: flex; align-items: center; gap: 12px; }
+  .cal-nav span { font-size: 15px; font-weight: 600; }
+  .exit-perf-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .exit-perf-table th, .exit-perf-table td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: right; }
+  .exit-perf-table th:first-child, .exit-perf-table td:first-child { text-align: left; }
+  .exit-perf-table th { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+  /* Reference tab */
+  .ref-section { margin-bottom: 28px; }
+  .ref-section h3 { font-size: 14px; font-weight: 700; color: var(--accent); margin: 0 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .ref-section p { margin: 0 0 10px; line-height: 1.7; color: var(--fg); }
+  .ref-section ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.8; }
+  .ref-section li { margin-bottom: 4px; }
+  .ref-flow { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
+  .ref-flow-step { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; text-align: center; min-width: 120px; }
+  .ref-flow-step .step-label { font-size: 10px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .ref-flow-step .step-val { font-weight: 700; color: var(--accent); }
+  .ref-flow-arrow { color: var(--muted); font-size: 18px; }
+  .rule-priority { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+  .rule-priority-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; background: var(--panel2); border-radius: 8px; border-left: 3px solid var(--line); }
+  .rule-priority-row.anytime { border-left-color: var(--red); }
+  .rule-priority-row.lasthour { border-left-color: var(--amber); }
+  .rule-priority-row.profit { border-left-color: var(--green); }
+  .rule-num { font-size: 11px; font-weight: 700; color: var(--muted); min-width: 24px; padding-top: 2px; }
+  .rule-content .rule-name { font-weight: 700; font-size: 13px; }
+  .rule-content .rule-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .rule-when { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: auto; white-space: nowrap; align-self: flex-start; margin-top: 2px; }
+  .rule-when.anytime { background: rgba(248,81,73,.15); color: var(--red); }
+  .rule-when.lasthour { background: rgba(210,153,34,.15); color: var(--amber); }
+  .rule-when.profit { background: rgba(63,185,80,.15); color: var(--green); }
 </style>
 </head>
 <body>
 <header>
   <h1>Long-Call Tracker</h1>
-  <span class="sub">paper long calls &middot; ATR exit engine &middot; live scorecard</span>
+  <span class="sub">DITM long calls · ATR exit engine · live scorecard</span>
   <span id="status"></span>
 </header>
 <nav>
   <button data-tab="watchlist" class="active">Watchlist</button>
   <button data-tab="positions">Positions</button>
   <button data-tab="scorecard">Scorecard</button>
+  <button data-tab="calendar">Calendar</button>
+  <button data-tab="reference">Reference</button>
   <button data-tab="settings">Settings</button>
 </nav>
 <main>
 
-  <section id="watchlist" class="active">
-    <div class="card">
-      <h2>Watchlist</h2>
+<!-- WATCHLIST -->
+<section id="watchlist" class="active">
+  <div class="card">
+    <h2>Watchlist</h2>
+    <div class="row" style="align-items:flex-end">
+      <div class="field" style="flex:1;min-width:220px"><label>Search name or symbol</label><input id="w-search" placeholder="apple, AAPL..."></div>
+      <button class="ghost" id="w-search-btn">Search</button>
+      <div class="field"><label>Target expiration</label><select id="w-exp" style="min-width:190px"></select></div>
+      <button class="ghost" id="w-refresh">Refresh data</button>
+      <button class="btn" id="w-scan">Pre-market scan</button>
+      <button class="ghost" id="w-clear">Clear</button>
+      <button class="ghost" id="w-copy-tickers">Copy Tickers</button>
+    </div>
+    <div id="w-results"></div>
+    <div class="row" style="margin-top:12px;align-items:flex-end">
+      <div class="field" style="flex:1;min-width:260px"><label>Paste tickers (comma / space / newline)</label><textarea id="w-paste" rows="2" placeholder="AAPL, MSFT, NVDA" style="resize:vertical"></textarea></div>
+      <button class="btn" id="w-add">Add to watchlist</button>
+    </div>
+    <div id="w-msg" class="hint" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>Candidates</h2>
+    <div style="overflow-x:auto">
+      <table id="w-table">
+        <thead><tr><th>Ticker</th><th>Last</th><th>&Delta;% day</th><th>ATR(14)</th><th>Suggested call (K / &Delta; / mark / exp)</th><th></th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="w-empty" class="hint">No tickers yet. Search or paste above, then Refresh data.</div>
+  </div>
+</section>
+
+<!-- POSITIONS -->
+<section id="positions">
+  <div class="card">
+    <h2>Add theoretical trade</h2>
+    <div class="row">
+      <div class="field"><label>Ticker</label><input id="t-ticker" class="sm" placeholder="AAPL"></div>
+      <div class="field"><label>Entry date</label><input id="t-date" type="date"></div>
+      <div class="field"><label>Entry time (CST)</label><input id="t-time" type="time" value="08:45"></div>
+      <button class="btn" id="t-load">Load chain</button>
+    </div>
+    <div id="t-msg" class="hint" style="margin-top:10px"></div>
+    <div id="chain-panel" style="display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
       <div class="row" style="align-items:flex-end">
-        <div class="field" style="flex:1;min-width:220px"><label>Search name or symbol</label><input id="w-search" placeholder="apple, AAPL..."></div>
-        <button class="ghost" id="w-search-btn">Search</button>
-        <div class="field"><label>Target expiration</label><select id="w-exp" style="min-width:190px"></select></div>
-        <button class="ghost" id="w-refresh">Refresh data</button>
-        <button class="btn" id="w-scan">Pre-market scan</button>
-        <button class="ghost" id="w-clear">Clear</button>
+        <div id="entry-readout" class="hint" style="margin-bottom:6px"></div>
+        <div class="field"><label>Expiration</label><select id="t-exp"></select></div>
       </div>
-      <div id="w-results"></div>
-      <div class="row" style="margin-top:12px;align-items:flex-end">
-        <div class="field" style="flex:1;min-width:260px"><label>Paste tickers (comma / space / newline)</label><textarea id="w-paste" rows="2" placeholder="AAPL, MSFT, NVDA" style="resize:vertical"></textarea></div>
-        <button class="btn" id="w-add">Add to watchlist</button>
-      </div>
-      <div id="w-msg" class="hint" style="margin-top:8px"></div>
-    </div>
-    <div class="card">
-      <h2>Candidates</h2>
-      <div style="overflow-x:auto">
-        <table id="w-table">
-          <thead><tr><th>Ticker</th><th>Last</th><th>&Delta;% day</th><th>ATR(14)</th><th>Suggested call (K / &Delta; / mark / exp)</th><th></th><th></th></tr></thead>
+      <div style="overflow:auto;margin-top:10px;max-height:340px">
+        <table id="chain-table">
+          <thead><tr><th>Strike</th><th>&Delta;</th><th>Bid</th><th>Ask</th><th>Mark</th><th>OI</th><th>Spread</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <div id="w-empty" class="hint">No tickers yet. Search or paste above, then Refresh data.</div>
-    </div>
-  </section>
-
-  <section id="positions">
-    <div class="card">
-      <h2>Add theoretical trade</h2>
-      <div class="row">
-        <div class="field"><label>Ticker</label><input id="t-ticker" class="sm" placeholder="AAPL"></div>
-        <div class="field"><label>Entry date</label><input id="t-date" type="date"></div>
-        <div class="field"><label>Entry time (CST)</label><input id="t-time" type="time" value="08:45"></div>
-        <button class="btn" id="t-load">Load chain</button>
-      </div>
-      <div id="t-msg" class="hint" style="margin-top:10px"></div>
-
-      <div id="chain-panel" style="display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
-        <div class="row" style="align-items:flex-end">
-          <div id="entry-readout" class="hint" style="margin-bottom:6px"></div>
-          <div class="field"><label>Expiration</label><select id="t-exp"></select></div>
+      <div id="chain-empty" class="hint">Pick an expiration to load its call strikes.</div>
+      <div id="select-box" style="display:none;margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+          <div style="font-size:28px;font-weight:700;color:var(--accent);line-height:1" id="t-contracts">-</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.4">contracts<br>to buy</div>
+          <div id="select-summary" class="hint" style="margin:0;flex:1"></div>
         </div>
-        <div style="overflow:auto;margin-top:10px;max-height:340px">
-          <table id="chain-table">
-            <thead><tr><th>Strike</th><th>&Delta;</th><th>Bid</th><th>Ask</th><th>Mark</th><th>OI</th><th>Spread</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="chain-empty" class="hint">Pick an expiration to load its call strikes.</div>
-        <div id="select-box" style="display:none;margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px">
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
-            <div style="font-size:28px;font-weight:700;color:var(--accent);line-height:1" id="t-contracts">-</div>
-            <div style="font-size:12px;color:var(--muted);line-height:1.4">contracts<br>to buy</div>
-            <div id="select-summary" class="hint" style="margin:0;flex:1"></div>
-          </div>
-          <div class="row" style="margin-top:8px;align-items:flex-end">
-            <div class="field"><label>Entry premium (override)</label><input id="t-prem" class="sm"></div>
-            <button class="btn" id="t-add">Add &amp; track</button>
-          </div>
+        <div class="row" style="margin-top:8px;align-items:flex-end">
+          <div class="field"><label>Entry premium (override)</label><input id="t-prem" class="sm"></div>
+          <button class="btn" id="t-add">Add &amp; track</button>
         </div>
       </div>
     </div>
-    <div class="card">
-      <h2>Open &amp; closed campaigns
-        <span style="float:right">
-          <button class="ghost" id="refresh" style="font-size:12px;padding:4px 10px">Refresh marks</button>
-          <button class="ghost" id="pos-clear" style="font-size:12px;padding:4px 10px;color:var(--red)">Clear all</button>
-        </span>
-      </h2>
-      <div style="overflow-x:auto">
-        <table id="pos-table">
-          <thead><tr>
-            <th>Ticker</th><th>Status</th><th>Entry</th><th>Stop / Emerg</th><th>Next +1 ATR</th>
-            <th>Leg (K / exp / &Delta; / DTE)</th><th>Qty</th><th>Mark</th><th>Unreal $</th><th>R</th><th>Rolls</th><th></th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
+  </div>
+  <div class="card">
+    <h2>Open &amp; closed campaigns
+      <span style="float:right">
+        <button class="ghost" id="refresh" style="font-size:12px;padding:4px 10px">Refresh marks</button>
+        <button class="ghost" id="pos-clear" style="font-size:12px;padding:4px 10px;color:var(--red)">Clear all</button>
+      </span>
+    </h2>
+    <div style="overflow-x:auto">
+      <table id="pos-table">
+        <thead><tr><th>Ticker</th><th>Status</th><th>Entry</th><th>Stop / Emerg</th><th>Next +1 ATR</th><th>Leg (K / exp / &Delta; / DTE)</th><th>Qty</th><th>Mark</th><th>Unreal $</th><th>R</th><th>Rolls</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="pos-empty" class="hint">No campaigns yet. Add a trade above, or pull from your repo in Settings.</div>
+  </div>
+</section>
+
+<!-- SCORECARD -->
+<section id="scorecard">
+  <div class="card">
+    <h2>Scorecard (closed campaigns)</h2>
+    <div class="grid" id="sc-grid"></div>
+    <div id="sc-breakdown" class="hint" style="margin-top:12px"></div>
+  </div>
+  <div class="card">
+    <h2>Performance by exit reason</h2>
+    <div id="exit-perf-wrap"><div class="hint">No closed campaigns yet.</div></div>
+  </div>
+  <div class="card">
+    <h2>Equity curve</h2>
+    <div id="equity"></div>
+  </div>
+</section>
+
+<!-- CALENDAR -->
+<section id="calendar">
+  <div class="card">
+    <div class="row" style="align-items:center;margin-bottom:12px">
+      <div class="cal-nav">
+        <button class="ghost" id="cal-prev" style="padding:4px 10px">&larr;</button>
+        <span id="cal-month-label">—</span>
+        <button class="ghost" id="cal-next" style="padding:4px 10px">&rarr;</button>
       </div>
-      <div id="pos-empty" class="hint">No campaigns yet. Add a trade above, or pull from your repo in Settings.</div>
+      <span class="hint" style="margin-left:auto">Click a green/red day for trade detail</span>
     </div>
-  </section>
+    <div class="cal-header"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="cal-detail" style="margin-top:16px;display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="cal-detail-date"></div>
+      <table id="cal-detail-table">
+        <thead><tr><th>Ticker</th><th>Exit reason</th><th>Rolls</th><th>P&amp;L</th><th>R</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Monthly summary</h2>
+    <div id="cal-monthly-summary" class="hint">Navigate to a month above.</div>
+  </div>
+</section>
 
-  <section id="scorecard">
-    <div class="card">
-      <h2>Scorecard (closed campaigns)</h2>
-      <div class="grid" id="sc-grid"></div>
-      <div id="sc-breakdown" class="hint" style="margin-top:12px"></div>
-    </div>
-    <div class="card">
-      <h2>Equity curve</h2>
-      <div id="equity"></div>
-    </div>
-  </section>
+<!-- REFERENCE -->
+<section id="reference">
+  <div class="card">
+    <h2>How the tracker works</h2>
 
-  <section id="settings">
-    <div class="card">
-      <h2>Settings</h2>
-      <div class="settings-grid">
-        <fieldset>
-          <legend>Account &amp; risk</legend>
-          <div class="field"><label>Paper account balance</label><input id="s-bal" type="number"></div>
-          <div class="field"><label>Risk per trade (fraction)</label><input id="s-risk" type="number" step="0.01"></div>
-        </fieldset>
-        <fieldset>
-          <legend>Providers</legend>
-          <div class="field"><label>Options greeks &amp; chains</label><select id="s-p-opt"><option value="tradier">Tradier</option><option value="alpaca">Alpaca</option></select></div>
-          <div class="field"><label>Stock price &amp; ATR</label><select id="s-p-eq"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
-          <div class="field"><label>SPY EMA</label><select id="s-p-spy"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
-        </fieldset>
-        <fieldset>
-          <legend>API keys (this browser only)</legend>
-          <div class="field"><label>FMP key</label><input id="s-fmp" type="password"></div>
-          <div class="field"><label>Tradier environment</label><select id="s-tenv"><option value="prod">Production (api.tradier.com)</option><option value="sandbox">Sandbox / test (sandbox.tradier.com)</option></select></div>
-          <div class="field"><label>Tradier API key (access token)</label><input id="s-ttok" type="password" placeholder="prod or sandbox token"></div>
-          <div class="field"><label>Tradier account ID</label><input id="s-tacct" placeholder="e.g. VA0000000 / 6YB....."></div>
-          <div class="field"><label>Tradier proxy URL (optional &mdash; overrides direct)</label><input id="s-tproxy" placeholder="https://tradier-proxy...workers.dev"></div>
-          <div class="field"><label>Tradier live token (for proxy)</label><input id="s-tlive" type="password"></div>
-          <div class="field"><label>Alpaca key / secret</label><input id="s-akey" type="password" placeholder="key"><input id="s-asec" type="password" placeholder="secret" style="margin-top:6px"></div>
-          <div class="row" style="margin-top:8px"><button class="ghost" id="s-test">Test connection</button><span id="s-test-msg" class="hint"></span></div>
-        </fieldset>
-        <fieldset>
-          <legend>GitHub sync (PAT in this browser only)</legend>
-          <div class="field"><label>Owner</label><input id="s-gh-owner" placeholder="alexreed122287"></div>
-          <div class="field"><label>Repo</label><input id="s-gh-repo" placeholder="long-call-tracker"></div>
-          <div class="field"><label>Branch</label><input id="s-gh-branch" placeholder="main"></div>
-          <div class="field"><label>Fine-grained PAT</label><input id="s-gh-pat" type="password"></div>
-          <div class="row" style="margin-top:8px">
-            <button class="ghost" id="gh-pull">Pull from repo</button>
-            <button class="ghost" id="gh-push">Push to repo</button>
+    <div class="ref-section">
+      <h3>Overview</h3>
+      <p>This tracker is built for <strong>DITM (Deep In The Money) long call options</strong> — high-delta calls (typically 70–90 delta) with 14–21 DTE at entry. The goal is to use calls as leveraged stock substitutes, where the option moves nearly dollar-for-dollar with the underlying while risking only the premium paid.</p>
+      <p>Each trade is tracked as a <strong>campaign</strong>: a single position that may consist of multiple legs if the contract is rolled forward or up during its life. The engine evaluates exit conditions on every 90-second tick during market hours.</p>
+    </div>
+
+    <div class="ref-section">
+      <h3>Trade lifecycle</h3>
+      <div class="ref-flow">
+        <div class="ref-flow-step"><div class="step-label">1. Screen</div><div class="step-val">Watchlist</div></div>
+        <div class="ref-flow-arrow">→</div>
+        <div class="ref-flow-step"><div class="step-label">2. Entry</div><div class="step-val">Load chain → pick strike</div></div>
+        <div class="ref-flow-arrow">→</div>
+        <div class="ref-flow-step"><div class="step-label">3. Monitor</div><div class="step-val">Auto tick every 90s</div></div>
+        <div class="ref-flow-arrow">→</div>
+        <div class="ref-flow-step"><div class="step-label">4. Roll / Exit</div><div class="step-val">Engine fires rule</div></div>
+        <div class="ref-flow-arrow">→</div>
+        <div class="ref-flow-step"><div class="step-label">5. Scorecard</div><div class="step-val">P&amp;L recorded</div></div>
+      </div>
+    </div>
+
+    <div class="ref-section">
+      <h3>Position sizing</h3>
+      <p>Contracts are sized so that a <strong>1× ATR(14) move against you</strong> equals your configured risk per trade (default 5% of account). Formula:</p>
+      <p><code>contracts = floor(risk_budget / (delta × ATR × 100))</code></p>
+      <p>This means larger-ATR names get fewer contracts, and you always risk roughly the same dollar amount per trade regardless of ticker.</p>
+    </div>
+
+    <div class="ref-section">
+      <h3>Exit rules — priority order</h3>
+      <p>On each tick, the engine checks rules in this order and fires the first one that applies. Only one rule fires per tick.</p>
+      <div class="rule-priority">
+        <div class="rule-priority-row profit">
+          <div class="rule-num">1</div>
+          <div class="rule-content">
+            <div class="rule-name">💰 Take profit</div>
+            <div class="rule-desc">Close when option gains the configured % from leg entry premium. Disabled when set to 0.</div>
           </div>
-        </fieldset>
+          <div class="rule-when profit">Any time</div>
+        </div>
+        <div class="rule-priority-row profit">
+          <div class="rule-num">2</div>
+          <div class="rule-content">
+            <div class="rule-name">📐 Trailing stop</div>
+            <div class="rule-desc">Tracks the option's peak price. Once profitable, closes if premium falls back the configured % from its high-water mark. Only triggers when position is in profit. Resets on each roll.</div>
+          </div>
+          <div class="rule-when profit">Any time (profit only)</div>
+        </div>
+        <div class="rule-priority-row anytime">
+          <div class="rule-num">3</div>
+          <div class="rule-content">
+            <div class="rule-name">📉 Regime exit</div>
+            <div class="rule-desc">SPY 10 EMA crosses below 20 EMA — broad market turns bearish. All open positions close.</div>
+          </div>
+          <div class="rule-when lasthour">Last hour only</div>
+        </div>
+        <div class="rule-priority-row anytime">
+          <div class="rule-num">4</div>
+          <div class="rule-content">
+            <div class="rule-name">🛑 Emergency stop</div>
+            <div class="rule-desc">Stock drops below entry − (emergency mult) × ATR. Hard floor for catastrophic moves.</div>
+          </div>
+          <div class="rule-when anytime">Any time</div>
+        </div>
+        <div class="rule-priority-row anytime">
+          <div class="rule-num">5</div>
+          <div class="rule-content">
+            <div class="rule-name">⛔ Premium stop-loss %</div>
+            <div class="rule-desc">Option loses the configured % of leg entry premium. Caps max loss per leg independent of stock movement. Disabled when set to 0.</div>
+          </div>
+          <div class="rule-when anytime">Any time</div>
+        </div>
+        <div class="rule-priority-row lasthour">
+          <div class="rule-num">6</div>
+          <div class="rule-content">
+            <div class="rule-name">🔴 ATR stop</div>
+            <div class="rule-desc">Stock drops below entry − (stop mult) × ATR. Softer than emergency — catches slow deterioration.</div>
+          </div>
+          <div class="rule-when lasthour">Last hour only</div>
+        </div>
+        <div class="rule-priority-row lasthour">
+          <div class="rule-num">7</div>
+          <div class="rule-content">
+            <div class="rule-name">⏱️ Time roll</div>
+            <div class="rule-desc">When DTE ≤ trigger: find a liquid contract with higher DTE and similar delta, roll out. If no liquid contract found, close instead of rolling.</div>
+          </div>
+          <div class="rule-when lasthour">Last hour only</div>
+        </div>
+        <div class="rule-priority-row lasthour">
+          <div class="rule-num">8</div>
+          <div class="rule-content">
+            <div class="rule-name">🎯 Winner roll-up</div>
+            <div class="rule-desc">Stock reaches entry + N× ATR (for the Nth step). Roll the strike up within the configured delta band to re-center and capture more intrinsic value.</div>
+          </div>
+          <div class="rule-when lasthour">Last hour only</div>
+        </div>
       </div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn" id="s-save">Save settings</button>
-        <span id="s-msg" class="hint"></span>
-      </div>
-      <p class="hint" style="margin-top:12px">Keys and the GitHub PAT are stored only in this browser's <code>localStorage</code> and never committed. The background GitHub Action uses repo <em>secrets</em> of the same values.</p>
+      <p style="margin-top:12px"><span style="background:rgba(248,81,73,.15);color:var(--red);padding:2px 8px;border-radius:4px;font-size:12px">Red border</span> = fires intraday any time &nbsp; <span style="background:rgba(210,153,34,.15);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:12px">Amber border</span> = last hour only (3–4 PM ET) &nbsp; <span style="background:rgba(63,185,80,.15);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px">Green border</span> = profit-side rules</p>
+      <p><strong>Last-hour restriction toggle:</strong> When disabled in Settings, rules 6–8 (ATR stop, time roll, winner roll-up) fire all day rather than only 3–4 PM ET. Useful if you want more active intraday management.</p>
+      <p><strong>Regime exit toggle:</strong> When disabled, rule 3 (SPY EMA cross) is skipped entirely. Useful if you want to ignore broad market signals and let stock-level rules govern exits.</p>
     </div>
-  </section>
+
+    <div class="ref-section">
+      <h3>Exit strategies explained</h3>
+      <ul>
+        <li><strong>Standard</strong> — Pure ATR-based stops with time roll and winner roll-up. No premium % rules. Best for mechanical DITM trading where you want the stock price to drive decisions.</li>
+        <li><strong>Aggressive</strong> — Tighter stops (0.75× ATR), earlier time roll (DTE ≤ 10), take profit at +100% premium, stop-loss at −40% premium. Higher churn, smaller losses, faster exits.</li>
+        <li><strong>Passive</strong> — Wider stops (1.5× ATR), late time roll (DTE ≤ 5), stop-loss at −50% premium. Fewer trades triggered, gives positions more room to breathe.</li>
+        <li><strong>Trailing</strong> — Standard ATR stops plus a 25% trailing stop on premium. Lets winners run as long as the option is above its peak minus 25%. Good for trending names.</li>
+        <li><strong>Custom</strong> — Set every parameter manually. Use when you want to combine specific take profit targets with ATR stops or tune stops per your risk tolerance.</li>
+      </ul>
+    </div>
+
+    <div class="ref-section">
+      <h3>Rolling mechanics</h3>
+      <p>A <strong>roll</strong> closes the current leg and opens a new one in the same campaign. The P&amp;L of the closed leg is realized and recorded; the new leg continues tracking from its own entry mark. This means campaign P&amp;L is the sum of all leg P&amp;Ls.</p>
+      <p><strong>Time roll</strong> targets the nearest expiration with: delta ≥ configured min, DTE ≥ configured min, and good liquidity (OI ≥ 500, spread ≤ 10%). If nothing qualifies, the position closes outright.</p>
+      <p><strong>Winner roll-up</strong> targets the nearest expiration with: delta in the configured band (default 65–85), DTE beyond current, and good liquidity. Rolls happen at each +1 ATR step from entry stock price.</p>
+    </div>
+
+    <div class="ref-section">
+      <h3>Scorecard metrics</h3>
+      <ul>
+        <li><strong>Win rate</strong> — % of closed campaigns with positive net P&amp;L.</li>
+        <li><strong>Profit factor</strong> — Gross wins ÷ gross losses. Above 1.0 = profitable overall. 2.0+ is strong.</li>
+        <li><strong>Expectancy (R)</strong> — Average P&amp;L per trade in risk units. 0.30R+ is healthy for a systematic strategy.</li>
+        <li><strong>Payoff ratio</strong> — Avg win ÷ avg loss. If below 1.0 you need a high win rate to be profitable.</li>
+        <li><strong>Max drawdown</strong> — Worst peak-to-trough in cumulative closed P&amp;L. Tells you how deep the pain got.</li>
+        <li><strong>Avg rolls</strong> — Average legs per campaign minus 1. Higher means more active management.</li>
+      </ul>
+    </div>
+
+    <div class="ref-section">
+      <h3>Data providers</h3>
+      <ul>
+        <li><strong>Tradier</strong> (recommended) — Real-time quotes, option chains with greeks, historical OHLCV. Requires a production API token. Use sandbox for testing.</li>
+        <li><strong>FMP (Financial Modeling Prep)</strong> — Daily OHLCV and stock quotes. Good for ATR and equity price; does not support option chains.</li>
+        <li><strong>Alpaca</strong> — Daily bars and option snapshots. Requires separate key/secret. Option greeks quality varies.</li>
+      </ul>
+      <p>You can mix providers — e.g., Tradier for options greeks + FMP for equity price history. Configure in Settings → Providers.</p>
+    </div>
+
+    <div class="ref-section">
+      <h3>GitHub sync</h3>
+      <p>The tracker stores all data in your browser's <code>localStorage</code>. To persist data across devices or browsers, connect a GitHub repo in Settings. The tracker will push <code>positions.json</code> and <code>history.json</code> to your repo after each change, and you can pull from another device.</p>
+      <p>API keys and your GitHub PAT are <strong>never committed</strong> — only data files are synced. Each browser stores its own keys.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="settings">
+  <div class="card">
+    <h2>Settings</h2>
+    <div class="settings-grid">
+      <fieldset>
+        <legend>Account &amp; risk</legend>
+        <div class="field"><label>Paper account balance</label><input id="s-bal" type="number"></div>
+        <div class="field"><label>Risk per trade (fraction, e.g. 0.05 = 5%)</label><input id="s-risk" type="number" step="0.01"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Exit strategy</legend>
+        <div class="field">
+          <label>Preset</label>
+          <select id="s-exit-strategy">
+            <option value="standard">Standard — ATR stops + time/winner rolls</option>
+            <option value="aggressive">Aggressive — tighter stops, take profit, earlier rolls</option>
+            <option value="passive">Passive — wider stops, hold longer</option>
+            <option value="trailing">Trailing stop — lets winners run, 25% pullback close</option>
+            <option value="custom">Custom — set all parameters manually</option>
+          </select>
+        </div>
+        <div class="field"><label>ATR stop multiplier</label><input id="s-atr-stop" type="number" step="0.1" min="0.1"></div>
+        <div class="field"><label>ATR emergency multiplier</label><input id="s-atr-emerg" type="number" step="0.1" min="0.1"></div>
+        <div class="field"><label>DTE roll trigger (roll when DTE ≤)</label><input id="s-dte-trigger" type="number" min="1"></div>
+        <div class="field"><label>Roll-up delta band min</label><input id="s-ru-dmin" type="number" step="0.01" min="0" max="1"></div>
+        <div class="field"><label>Roll-up delta band max</label><input id="s-ru-dmax" type="number" step="0.01" min="0" max="1"></div>
+        <div class="field"><label>Take profit % of premium (0 = off, e.g. 1.0 = 100% gain)</label><input id="s-take-profit" type="number" step="0.05" min="0"></div>
+        <div class="field"><label>Stop-loss % of premium (0 = off, e.g. 0.40 = 40% loss)</label><input id="s-stop-loss-pct" type="number" step="0.05" min="0"></div>
+        <div class="field"><label>Trailing stop % from premium peak (0 = off, e.g. 0.25 = 25%)</label><input id="s-trailing-stop" type="number" step="0.05" min="0"></div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px;margin-top:6px">
+          <input type="checkbox" id="s-last-hour-only" style="width:auto;margin:0">
+          <label for="s-last-hour-only" style="text-transform:none;font-size:13px;cursor:pointer;color:var(--fg)">Restrict ATR stop / rolls to last hour only (3–4 PM ET)</label>
+        </div>
+        <div class="hint" style="margin-left:26px;margin-top:2px;margin-bottom:8px">When off, ATR stop, time roll, and winner roll-up fire all day — not just the last hour.</div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px">
+          <input type="checkbox" id="s-regime-exit" style="width:auto;margin:0">
+          <label for="s-regime-exit" style="text-transform:none;font-size:13px;cursor:pointer;color:var(--fg)">Enable market regime exit (SPY 10/20 EMA bearish cross)</label>
+        </div>
+        <div class="hint" style="margin-left:26px;margin-top:2px">When off, the SPY regime filter is ignored and positions stay open through regime shifts.</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Providers</legend>
+        <div class="field"><label>Options greeks &amp; chains</label><select id="s-p-opt"><option value="tradier">Tradier</option><option value="alpaca">Alpaca</option></select></div>
+        <div class="field"><label>Stock price &amp; ATR</label><select id="s-p-eq"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
+        <div class="field"><label>SPY EMA</label><select id="s-p-spy"><option value="tradier">Tradier</option><option value="fmp">FMP</option><option value="alpaca">Alpaca</option></select></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>API keys (this browser only)</legend>
+        <div class="field"><label>FMP key</label><input id="s-fmp" type="password"></div>
+        <div class="field"><label>Tradier environment</label><select id="s-tenv"><option value="prod">Production (api.tradier.com)</option><option value="sandbox">Sandbox / test (sandbox.tradier.com)</option></select></div>
+        <div class="field"><label>Tradier API key (access token)</label><input id="s-ttok" type="password" placeholder="prod or sandbox token"></div>
+        <div class="field"><label>Tradier account ID</label><input id="s-tacct" placeholder="e.g. VA0000000 / 6YB....."></div>
+        <div class="field"><label>Tradier proxy URL (optional)</label><input id="s-tproxy" placeholder="https://tradier-proxy...workers.dev"></div>
+        <div class="field"><label>Tradier live token (for proxy)</label><input id="s-tlive" type="password"></div>
+        <div class="field"><label>Alpaca key / secret</label><input id="s-akey" type="password" placeholder="key"><input id="s-asec" type="password" placeholder="secret" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:8px"><button class="ghost" id="s-test">Test connection</button><span id="s-test-msg" class="hint"></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>GitHub sync (PAT in this browser only)</legend>
+        <div class="field"><label>Owner</label><input id="s-gh-owner" placeholder="alexreed122287"></div>
+        <div class="field"><label>Repo</label><input id="s-gh-repo" placeholder="long-call-tracker"></div>
+        <div class="field"><label>Branch</label><input id="s-gh-branch" placeholder="main"></div>
+        <div class="field"><label>Fine-grained PAT</label><input id="s-gh-pat" type="password"></div>
+        <div class="row" style="margin-top:8px">
+          <button class="ghost" id="gh-pull">Pull from repo</button>
+          <button class="ghost" id="gh-push">Push to repo</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Share this tool</legend>
+        <p class="hint" style="margin:0 0 10px">Share with anyone — they connect their own API keys and track their own picks.</p>
+        <div class="row" style="align-items:center;gap:10px">
+          <input id="share-app-url" style="flex:1;font-size:12px;font-family:monospace" readonly value="https://alexreed122287.github.io/long-call-tracker/">
+          <button class="btn" id="copy-app-url">📋 Copy link</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="card" style="margin-top:16px;background:var(--panel2)">
+      <h2>Active exit rules for current strategy</h2>
+      <div id="exit-rules-display"></div>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="s-save">Save settings</button>
+      <span id="s-msg" class="hint"></span>
+    </div>
+    <p class="hint" style="margin-top:12px">Keys and GitHub PAT are stored only in this browser's <code>localStorage</code> and never committed to the repo.</p>
+  </div>
+</section>
 
 </main>
 <script src="engine.js"></script>

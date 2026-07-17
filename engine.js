@@ -106,19 +106,54 @@
     if (ctx.currentDTE < 0) return { type: 'close', reason: 'expiry' };
 
     var lv = atrLevels(campaign.entryStockPrice, campaign.atrAtEntry, cfg);
-    var last = isLastHour(ctx.etMinutes, cfg);
+    // lastHourOnly toggle: when disabled, treat every tick as "last hour" so
+    // ATR stop / time-roll / winner roll-up fire all day, not just 3-4 PM ET.
+    var lastHourEnabled = cfg.lastHourOnly !== false; // default true
+    var last = lastHourEnabled ? isLastHour(ctx.etMinutes, cfg) : true;
+    var regimeEnabled = cfg.regimeExitEnabled !== false; // default true
+    var legs = campaign.legs || [];
+    var entryMark = legs[0] ? legs[0].entryMark : null;
+    var openLeg = legs[legs.length - 1];
+    var openLegEntry = openLeg ? openLeg.entryMark : entryMark;
 
-    // Rule 1: regime (last hour only; precedence above emergency)
-    if (last && ctx.spyRegimeCross) return { type: 'close', reason: 'regime' };
+    // ── Rule 0: Take-profit on option premium (any time) ──
+    if (cfg.takeProfitPct && cfg.takeProfitPct > 0 && openLegEntry && ctx.currentMark != null) {
+      var gainPct = (ctx.currentMark - openLegEntry) / openLegEntry;
+      if (gainPct >= cfg.takeProfitPct) {
+        return { type: 'close', reason: 'take_profit' };
+      }
+    }
 
-    // Rule 2: emergency (intraday, any time)
+    // ── Rule 0b: Trailing stop on option premium ──
+    if (cfg.trailingStopPct && cfg.trailingStopPct > 0 && openLegEntry && ctx.currentMark != null) {
+      var hwm = campaign.premiumHWM || openLegEntry;
+      if (ctx.currentMark > hwm) hwm = ctx.currentMark;
+      ctx._updatedHWM = hwm;
+      var pullback = (hwm - ctx.currentMark) / hwm;
+      if (pullback >= cfg.trailingStopPct && ctx.currentMark > openLegEntry) {
+        return { type: 'close', reason: 'trailing_stop' };
+      }
+    }
+
+    // ── Rule 1: Regime exit (respects lastHourOnly toggle; skipped if disabled) ──
+    if (regimeEnabled && last && ctx.spyRegimeCross) return { type: 'close', reason: 'regime' };
+
+    // ── Rule 2: Emergency stop (intraday, any time) ──
     if (ctx.stockPrice <= lv.emergency) return { type: 'close', reason: 'emergency' };
 
+    // ── Rule 2b: Stop-loss % on option premium (intraday, any time) ──
+    if (cfg.stopLossPct && cfg.stopLossPct > 0 && openLegEntry && ctx.currentMark != null) {
+      var lossPct = (openLegEntry - ctx.currentMark) / openLegEntry;
+      if (lossPct >= cfg.stopLossPct) {
+        return { type: 'close', reason: 'stop_loss_pct' };
+      }
+    }
+
     if (last) {
-      // Rule 3: stop
+      // ── Rule 3: ATR stop ──
       if (ctx.stockPrice <= lv.stop) return { type: 'close', reason: 'stop' };
 
-      // Rule 4: time-roll
+      // ── Rule 4: Time roll ──
       if (ctx.currentDTE <= cfg.dteRollTrigger) {
         var rollT = pickRollContract(ctx.rollCandidates, {
           mode: 'time',
@@ -133,7 +168,7 @@
         return { type: 'close', reason: 'dte_close' };
       }
 
-      // Rule 5: winner roll-up at each new +atrRollUpStep ATR step
+      // ── Rule 5: Winner roll-up at each new +atrRollUpStep ATR step ──
       var k = (campaign.rollUpStepsTaken || 0) + 1;
       if (ctx.stockPrice >= nextRollUpLevel(campaign, cfg)) {
         var rollU = pickRollContract(ctx.rollCandidates, {
@@ -168,6 +203,9 @@
     var events = [];
     var openLeg = camp.legs[camp.legs.length - 1];
 
+    // persist trailing stop HWM if updated
+    if (ctx && ctx._updatedHWM != null) camp.premiumHWM = ctx._updatedHWM;
+
     if (action.type === 'close') {
       // Expired legs settle at intrinsic — the quote mark is stale/worthless.
       var settleMark = (action.reason === 'expiry' && ctx.stockPrice > 0)
@@ -190,6 +228,7 @@
         deltaAtEntry: action.contract.delta, entryMark: action.contract.mark,
         exitMark: null, exitReason: null, realizedPnl: null, openedOn: ctx.today, closedOn: null
       });
+      camp.premiumHWM = action.contract.mark; // reset HWM on roll
       if (action.reason === 'roll_up' && action.newStep != null) camp.rollUpStepsTaken = action.newStep;
       events.push({ campaign: camp.id, type: action.reason, detail: openLeg.strike + '->' + action.contract.strike, ts: ctx.today });
     }
@@ -206,6 +245,7 @@
     var d = a.map(function (x) { var e = Math.min(0, x - mar); return e * e; });
     return Math.sqrt(_mean(d));
   }
+
   function scorecard(campaigns) {
     var closed = (campaigns || []).filter(function (c) { return c.status === 'closed'; });
     // Drawdown is a path statistic: order by close date, not entry order.
@@ -221,17 +261,14 @@
     var losses = pnls.filter(function (x) { return x < 0; });
     var grossWin = wins.reduce(function (s, x) { return s + x; }, 0);
     var grossLoss = Math.abs(losses.reduce(function (s, x) { return s + x; }, 0));
-
     var cum = 0, peak = 0, mdd = 0, i;
     for (i = 0; i < pnls.length; i++) {
       cum += pnls[i];
       if (cum > peak) peak = cum;
       if (peak - cum > mdd) mdd = peak - cum;
     }
-
     var reasons = {};
     closed.forEach(function (c) { reasons[c.exitReason] = (reasons[c.exitReason] || 0) + 1; });
-
     var dd = _downsideDev(Rs, 0), sd = _std(Rs);
     return {
       trades: n,
@@ -291,8 +328,6 @@
   }
 
   function windowStrikes(chain, refPrice, itm, otm) {
-    // For calls: ITM = strike <= underlying, OTM = strike > underlying.
-    // Returns up to itm strikes just below/at spot + otm strikes just above, sorted.
     itm = (itm == null) ? 15 : itm;
     otm = (otm == null) ? 15 : otm;
     var sorted = (chain || []).slice().sort(function (a, b) { return a.strike - b.strike; });
@@ -303,7 +338,6 @@
   }
 
   function isMonthlyExpiration(dateISO) {
-    // Standard equity monthly = 3rd Friday of the month (Friday, day-of-month 15-21).
     var d = new Date(Date.parse(dateISO + 'T00:00:00Z'));
     var dom = +dateISO.slice(8, 10);
     return d.getUTCDay() === 5 && dom >= 15 && dom <= 21;
@@ -324,10 +358,6 @@
     return isFinite(n) ? n : 0;
   }
 
-  // Collision-proof campaign id: TICKER-DATE-N where N is strictly greater than
-  // every live N for the same ticker+date. The old scheme used the positions
-  // array length as the counter, which reused a suffix after a delete + re-add
-  // and produced two campaigns sharing one id — that broke per-row delete/close.
   function nextCampaignId(positions, ticker, date) {
     var prefix = ticker + '-' + date + '-', max = 0;
     (positions || []).forEach(function (c) {
@@ -337,10 +367,6 @@
     return prefix + (max + 1);
   }
 
-  // Repair campaigns that already share an id (or have a blank id) so each is
-  // independently addressable. Keeps the first occurrence's id; reassigns later
-  // duplicates to a fresh id that collides with no original or already-assigned
-  // id. Returns a new array and does not mutate inputs.
   function dedupeCampaignIds(positions) {
     positions = positions || [];
     var original = {};

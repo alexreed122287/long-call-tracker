@@ -10,15 +10,122 @@
   function getJSON(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function setJSON(k, v) { lsSet(k, JSON.stringify(v)); }
 
+  /* ---------- exit strategy presets ---------- */
+  var EXIT_PRESETS = {
+    standard: {
+      atrStopMult: 1, atrEmergencyMult: 3, dteRollTrigger: 7,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75,
+      timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
+      takeProfitPct: 0, stopLossPct: 0, trailingStopPct: 0
+    },
+    aggressive: {
+      atrStopMult: 0.75, atrEmergencyMult: 2, dteRollTrigger: 10,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.78,
+      timeRollMinDelta: 0.65, timeRollMinDTE: 21, timeRollDeltaTarget: 0.75,
+      takeProfitPct: 1.0, stopLossPct: 0.40, trailingStopPct: 0
+    },
+    passive: {
+      atrStopMult: 1.5, atrEmergencyMult: 4, dteRollTrigger: 5,
+      rollUpDeltaBand: [0.60, 0.90], rollUpDeltaTarget: 0.72,
+      timeRollMinDelta: 0.55, timeRollMinDTE: 45, timeRollDeltaTarget: 0.65,
+      takeProfitPct: 0, stopLossPct: 0.50, trailingStopPct: 0
+    },
+    trailing: {
+      atrStopMult: 1, atrEmergencyMult: 3, dteRollTrigger: 7,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75,
+      timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
+      takeProfitPct: 0, stopLossPct: 0, trailingStopPct: 0.25
+    },
+    custom: {
+      atrStopMult: 1, atrEmergencyMult: 3, dteRollTrigger: 7,
+      rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75,
+      timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
+      takeProfitPct: 0, stopLossPct: 0, trailingStopPct: 0
+    }
+  };
+
+  var EXIT_STRATEGY_RULES = {
+    standard: [
+      { name: 'Take profit', badge: '💰', active: false, desc: 'Not active in this preset.', trigger: 'Set a Take Profit % in Custom to enable.' },
+      { name: 'Trailing stop', badge: '📐', active: false, desc: 'Not active in this preset.', trigger: 'Set a Trailing Stop % in Custom to enable.' },
+      { name: 'Regime exit', badge: '📉', active: true, desc: 'Close if SPY 10 EMA crosses below 20 EMA — signals a broad market regime shift from bullish to bearish.', trigger: 'Last hour only (after 3:00 PM ET). Checked every 90-second tick.' },
+      { name: 'Emergency stop', badge: '🛑', active: true, desc: 'Hard close if the underlying stock drops below entry price − 3× ATR. Protects against gap-downs and fast waterfall moves.', trigger: 'Intraday, any time. Highest non-profit priority.' },
+      { name: 'Premium stop-loss %', badge: '⛔', active: false, desc: 'Not active in this preset.', trigger: 'Set a Stop Loss % in Custom to enable.' },
+      { name: 'ATR stop', badge: '🔴', active: true, desc: 'Close if stock drops below entry − 1× ATR. Softer than emergency — catches slow deterioration.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', active: true, desc: 'Roll to a new expiration when DTE ≤ 7 and a liquid 60+ delta / 30+ DTE contract exists.', trigger: 'Last hour only. Closes instead if no liquid roll found.' },
+      { name: 'Winner roll-up', badge: '🎯', active: true, desc: 'Roll the strike up when stock reaches entry + N× ATR. Locks in intrinsic gains and re-centers the delta.', trigger: 'Last hour only. Requires liquid contract in 65–85 delta band.' }
+    ],
+    aggressive: [
+      { name: 'Take profit', badge: '💰', active: true, desc: 'Close when option premium doubles (100% gain). Banks the win before mean reversion.', trigger: 'Intraday, any time. Checked every tick.' },
+      { name: 'Trailing stop', badge: '📐', active: false, desc: 'Not active in this preset.', trigger: '' },
+      { name: 'Regime exit', badge: '📉', active: true, desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only.' },
+      { name: 'Emergency stop', badge: '🛑', active: true, desc: 'Close if stock drops below entry − 2× ATR. Tighter cushion than standard.', trigger: 'Intraday, any time.' },
+      { name: 'Premium stop-loss %', badge: '⛔', active: true, desc: 'Close if the option loses 40% of its entry premium. Caps max option loss per leg.', trigger: 'Intraday, any time.' },
+      { name: 'ATR stop', badge: '🔴', active: true, desc: 'Close if stock drops below entry − 0.75× ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', active: true, desc: 'Roll when DTE ≤ 10. Targets 65+ delta, 21+ DTE.', trigger: 'Last hour only.' },
+      { name: 'Winner roll-up', badge: '🎯', active: true, desc: 'Roll up on each +1 ATR step in the 65–85 delta band.', trigger: 'Last hour only.' }
+    ],
+    passive: [
+      { name: 'Take profit', badge: '💰', active: false, desc: 'Not active in this preset.', trigger: '' },
+      { name: 'Trailing stop', badge: '📐', active: false, desc: 'Not active in this preset.', trigger: '' },
+      { name: 'Regime exit', badge: '📉', active: true, desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only.' },
+      { name: 'Emergency stop', badge: '🛑', active: true, desc: 'Close if stock drops below entry − 4× ATR. Very wide — only for catastrophic moves.', trigger: 'Intraday, any time.' },
+      { name: 'Premium stop-loss %', badge: '⛔', active: true, desc: 'Close if option loses 50% of entry premium.', trigger: 'Intraday, any time.' },
+      { name: 'ATR stop', badge: '🔴', active: true, desc: 'Close if stock drops below entry − 1.5× ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', active: true, desc: 'Roll when DTE ≤ 5. Targets 55+ delta, 45+ DTE. Holds much longer before rolling.', trigger: 'Last hour only.' },
+      { name: 'Winner roll-up', badge: '🎯', active: true, desc: 'Roll up on each +1 ATR step in the 60–90 delta band.', trigger: 'Last hour only.' }
+    ],
+    trailing: [
+      { name: 'Take profit', badge: '💰', active: false, desc: 'Not active in this preset.', trigger: '' },
+      { name: 'Trailing stop', badge: '📐', active: true, desc: 'Once the option gains value, lock in profits with a 25% pullback stop. If option peaks at $5.00, closes if it falls back to $3.75. Lets winners run while protecting gains.', trigger: 'Intraday, any time. Only triggers once option is profitable.' },
+      { name: 'Regime exit', badge: '📉', active: true, desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only.' },
+      { name: 'Emergency stop', badge: '🛑', active: true, desc: 'Close if stock drops below entry − 3× ATR.', trigger: 'Intraday, any time.' },
+      { name: 'Premium stop-loss %', badge: '⛔', active: false, desc: 'Not active in this preset.', trigger: '' },
+      { name: 'ATR stop', badge: '🔴', active: true, desc: 'Close if stock drops below entry − 1× ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', active: true, desc: 'Roll when DTE ≤ 7. Targets 60+ delta, 30+ DTE.', trigger: 'Last hour only.' },
+      { name: 'Winner roll-up', badge: '🎯', active: true, desc: 'Roll up on each +1 ATR step in the 65–85 delta band.', trigger: 'Last hour only.' }
+    ],
+    custom: [
+      { name: 'Take profit', badge: '💰', active: true, desc: 'Close when option gains the configured Take Profit % from entry premium. Set to 0 to disable.', trigger: 'Intraday, any time when set > 0.' },
+      { name: 'Trailing stop', badge: '📐', active: true, desc: 'Once profitable, close if option pulls back the configured Trailing Stop % from its peak. Set to 0 to disable.', trigger: 'Intraday, any time when set > 0 and position is profitable.' },
+      { name: 'Regime exit', badge: '📉', active: true, desc: 'Close on SPY 10/20 EMA bearish cross.', trigger: 'Last hour only (after 3:00 PM ET).' },
+      { name: 'Emergency stop', badge: '🛑', active: true, desc: 'Close if stock drops below entry − (emergency mult) × ATR.', trigger: 'Intraday, any time.' },
+      { name: 'Premium stop-loss %', badge: '⛔', active: true, desc: 'Close if option loses the configured Stop Loss % of entry premium. Set to 0 to disable.', trigger: 'Intraday, any time when set > 0.' },
+      { name: 'ATR stop', badge: '🔴', active: true, desc: 'Close if stock drops below entry − (stop mult) × ATR.', trigger: 'Last hour only.' },
+      { name: 'Time roll', badge: '⏱️', active: true, desc: 'Roll when DTE ≤ configured trigger. Targets configured min delta / DTE.', trigger: 'Last hour only.' },
+      { name: 'Winner roll-up', badge: '🎯', active: true, desc: 'Roll up on each +1 ATR step within the configured delta band.', trigger: 'Last hour only.' }
+    ]
+  };
+
+  var METRIC_TOOLTIPS = {
+    'Trades': 'Total number of campaigns that have been fully closed.',
+    'Win rate': 'Percentage of closed campaigns with a positive net P&L. Above 50% with a payoff ratio near 1.0 is breakeven; aim for 55%+ or a payoff ratio above 1.5.',
+    'Profit factor': 'Gross wins ÷ gross losses. Above 1.0 means you made more than you lost overall. 2.0+ is strong.',
+    'Expectancy': 'Average P&L per trade in units of risk (R). Positive = edge. 0.30R+ is healthy for a systematic strategy.',
+    'Max drawdown': 'The largest peak-to-trough decline in cumulative P&L across all closed campaigns.',
+    'Payoff ratio': 'Average winning trade ÷ average losing trade. Shows whether wins are structurally larger than losses.',
+    'Avg win': 'Average dollar profit on winning closed campaigns.',
+    'Avg loss': 'Average dollar loss on losing closed campaigns.',
+    'Avg rolls': 'Average number of contract rolls per campaign. Higher = more active management.',
+    'Largest win': 'Single largest dollar gain across all closed campaigns.',
+    'Largest loss': 'Single largest dollar loss across all closed campaigns.',
+    'Total P&L': 'Sum of all realized P&L across every closed campaign.'
+  };
+
   var DEFAULT_CONFIG = {
-    accountBalance: 1000000, riskPct: 0.05, atrStopMult: 1, atrEmergencyMult: 3, atrRollUpStep: 1,
+    accountBalance: 1000000, riskPct: 0.05,
+    atrStopMult: 1, atrEmergencyMult: 3, atrRollUpStep: 1,
     rollUpDeltaBand: [0.65, 0.85], rollUpDeltaTarget: 0.75, dteRollTrigger: 7,
     timeRollMinDelta: 0.60, timeRollMinDTE: 30, timeRollDeltaTarget: 0.70,
     liquidityMinOI: 500, liquidityMaxSpreadPct: 0.10, premarketMinGapAtr: 0.25,
+    exitStrategy: 'standard',
+    takeProfitPct: 0, stopLossPct: 0, trailingStopPct: 0,
+    lastHourOnly: true, regimeExitEnabled: true,
     timing: { lastHourStartET: '15:00', marketCloseET: '16:00' },
     providers: { optionsGreeks: 'tradier', equityPriceAtr: 'tradier', spyEma: 'tradier' }
   };
-  function getConfig() { return getJSON('lct_config', DEFAULT_CONFIG); }
+
+  function getConfig() { return Object.assign({}, DEFAULT_CONFIG, getJSON('lct_config', DEFAULT_CONFIG)); }
   function setConfig(c) { setJSON('lct_config', c); }
   function getPositions() { return getJSON('lct_positions', []); }
   function setPositions(p) { setJSON('lct_positions', p); }
@@ -58,7 +165,7 @@
   }
   function cstToEt(hhmm) { var pr = (hhmm || '08:45').split(':'); var m = (+pr[0]) * 60 + (+pr[1]) + 60; return pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
 
-  /* ---------- GitHub contents API ---------- */
+  /* ---------- GitHub ---------- */
   function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
   function b64decode(s) { return decodeURIComponent(escape(atob((s || '').replace(/\n/g, '')))); }
   function ghHeaders(g) { return { 'Authorization': 'Bearer ' + g.pat, 'Accept': 'application/vnd.github+json' }; }
@@ -111,9 +218,8 @@
     }
   }
 
-  /* ---------- add trade: option-chain picker ---------- */
+  /* ---------- chain picker ---------- */
   var picker = { entry: null, selected: null };
-
   async function loadChain() {
     var msg = $('t-msg'); msg.className = 'hint'; msg.textContent = 'loading chain...';
     $('chain-panel').style.display = 'none'; $('select-box').style.display = 'none'; picker.selected = null;
@@ -141,7 +247,6 @@
       onExpiration();
     } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
   }
-
   async function onExpiration() {
     if (!picker.entry) return;
     var exp = $('t-exp').value;
@@ -161,21 +266,12 @@
         var inBand = c.delta >= band[0] && c.delta <= band[1];
         var tr = document.createElement('tr');
         tr.className = 'chain-row' + (inBand ? ' in-band' : '') + (liquid ? '' : ' illiquid');
-        tr.innerHTML =
-          '<td>' + c.strike + '</td>' +
-          '<td>' + fmt2(c.delta) + '</td>' +
-          '<td>' + fmt2(c.bid) + '</td>' +
-          '<td>' + fmt2(c.ask) + '</td>' +
-          '<td>' + fmt2(c.mark) + '</td>' +
-          '<td>' + (c.oi || 0) + (liquid ? '' : '<span class="tag">thin</span>') + '</td>' +
-          '<td>' + (spread != null ? (spread * 100).toFixed(1) + '%' : '-') + '</td>' +
-          '<td>' + (inBand ? '<span class="tag" style="color:var(--accent)">band</span>' : '') + '</td>';
+        tr.innerHTML = '<td>' + c.strike + '</td><td>' + fmt2(c.delta) + '</td><td>' + fmt2(c.bid) + '</td><td>' + fmt2(c.ask) + '</td><td>' + fmt2(c.mark) + '</td><td>' + (c.oi || 0) + (liquid ? '' : '<span class="tag">thin</span>') + '</td><td>' + (spread != null ? (spread * 100).toFixed(1) + '%' : '-') + '</td><td>' + (inBand ? '<span class="tag" style="color:var(--accent)">band</span>' : '') + '</td>';
         tr.onclick = function () { selectContract(c, exp, tr); };
         tb.appendChild(tr);
       });
     } catch (e) { empty.style.display = 'block'; empty.textContent = e.message; }
   }
-
   function updateSelectSummary() {
     if (!picker.entry || !picker.selected) return;
     var cfg = getConfig(), e = picker.entry, c = picker.selected.contract, exp = picker.selected.expiration;
@@ -183,14 +279,9 @@
     var mark = (isFinite(override) && override > 0) ? override : c.mark;
     var budget = cfg.accountBalance * cfg.riskPct;
     var contracts = E.contractsForBudget(budget, mark);
-    var totalPremium = mark * 100 * contracts;
     $('t-contracts').textContent = contracts;
-    $('select-summary').innerHTML = e.ticker + ' ' + c.strike + 'C ' + exp +
-      ' &middot; ' + E.dteBetween(e.date, exp) + 'd &middot; &Delta; ' + fmt2(c.delta) +
-      ' &middot; ' + fmtMoney(totalPremium) + ' total' +
-      ' &middot; ' + (cfg.riskPct * 100).toFixed(1) + '% risk (' + fmtMoney(budget) + ')';
+    $('select-summary').innerHTML = e.ticker + ' ' + c.strike + 'C ' + exp + ' &middot; ' + E.dteBetween(e.date, exp) + 'd &middot; &Delta; ' + fmt2(c.delta) + ' &middot; ' + fmtMoney(mark * 100 * contracts) + ' total &middot; ' + (cfg.riskPct * 100).toFixed(1) + '% risk (' + fmtMoney(budget) + ')';
   }
-
   function selectContract(c, exp, tr) {
     picker.selected = { contract: c, expiration: exp };
     Array.prototype.forEach.call($('chain-table').querySelectorAll('tr.selected'), function (x) { x.classList.remove('selected'); });
@@ -199,7 +290,6 @@
     updateSelectSummary();
     $('select-box').style.display = 'block';
   }
-
   function addSelected() {
     var msg = $('t-msg'); msg.className = 'hint';
     if (!picker.entry || !picker.selected) { msg.className = 'err'; msg.textContent = 'pick a contract first'; return; }
@@ -213,8 +303,9 @@
       id: E.nextCampaignId(getPositions(), e.ticker, e.date),
       ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
       entryStockPrice: e.price, atrAtEntry: e.atr, riskBudget: budget, contracts: contracts,
+      exitStrategyAtEntry: cfg.exitStrategy || 'standard',
       stopLevel: e.price - cfg.atrStopMult * e.atr, emergencyLevel: e.price - cfg.atrEmergencyMult * e.atr,
-      rollUpStepsTaken: 0,
+      rollUpStepsTaken: 0, premiumHWM: entryMark,
       legs: [{ strike: c.strike, expiration: exp, deltaAtEntry: c.delta, entryMark: entryMark, exitMark: null, exitReason: null, realizedPnl: null, openedOn: e.date, closedOn: null }],
       netPnl: null, exitReason: null
     };
@@ -226,7 +317,7 @@
     render();
   }
 
-  /* ---------- live tick: evaluate + apply (open-tab tracking) ---------- */
+  /* ---------- live tick ---------- */
   async function tick() {
     var cfg = getConfig(), p;
     try { p = provider(); } catch (e) { setStatus('set API keys'); return; }
@@ -249,13 +340,20 @@
         var ctx = { stockPrice: sq.price, etMinutes: now.minutes, spyRegimeCross: regime, currentDTE: currentDTE, currentMark: q.mark, today: now.dateISO, rollCandidates: cands };
         var action = E.evaluateExits(camp, ctx, cfg);
         if (action.type !== 'none') {
-          var res = E.applyAction(camp, action, ctx);
+          var res = E.applyAction(camp, action, ctx); // applyAction persists ctx._updatedHWM
           updatedById[camp.id] = res.campaign;
           for (var e = 0; e < res.events.length; e++) newEvents.push(res.events[e]);
           // after a roll the cached mark belongs to the OLD leg; carry the
           // new leg's entry mark so P&L math doesn't mix contracts
           if (res.campaign.status === 'open') liveMarks[camp.id] = res.campaign.legs[res.campaign.legs.length - 1].entryMark;
           else delete liveMarks[camp.id];
+          changed = true;
+        } else if (ctx._updatedHWM != null && ctx._updatedHWM !== camp.premiumHWM) {
+          // trailing-stop high-water mark advanced with no exit: persist it
+          // through the same merge path so it survives concurrent user edits
+          var hwmCamp = JSON.parse(JSON.stringify(camp));
+          hwmCamp.premiumHWM = ctx._updatedHWM;
+          updatedById[camp.id] = hwmCamp;
           changed = true;
         }
       } catch (err) { quoteFailed = true; setStatus('data error: ' + err.message); }
@@ -306,8 +404,7 @@
         positions[i] = res.campaign; res.events.forEach(function (ev) { history.events.push(ev); });
         setPositions(positions); setHistory(history);
         if (gh().pat) pushState();
-        render();
-        return;
+        render(); return;
       }
     }
   }
@@ -320,17 +417,12 @@
     exps.forEach(function (d) { var diff = Math.abs(E.dteBetween(today, d) - targetDte); if (diff < bd) { bd = diff; best = d; } });
     return best;
   }
-  function selectedTargetDte() {
-    var el = $('w-exp'), v = el && el.value;
-    return v ? E.dteBetween(isoToday(), v) : 45;
-  }
+  function selectedTargetDte() { var el = $('w-exp'), v = el && el.value; return v ? E.dteBetween(isoToday(), v) : 45; }
   function populateExpDropdown(exps, today) {
     var el = $('w-exp'); if (!el) return;
     var prev = el.value, def = E.pickDefaultExpiration(exps, today);
     var sel = (prev && exps.indexOf(prev) >= 0) ? prev : def;
-    el.innerHTML = exps.map(function (d) {
-      return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd, ' + (E.isMonthlyExpiration(d) ? 'M' : 'W') + ')</option>';
-    }).join('');
+    el.innerHTML = exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd, ' + (E.isMonthlyExpiration(d) ? 'M' : 'W') + ')</option>'; }).join('');
   }
   async function ensureExpirations(force) {
     var el = $('w-exp'); if (!el) return;
@@ -343,7 +435,7 @@
     try {
       var exps = (await p.getExpirations('SPY')).filter(function (d) { return E.dteBetween(today, d) > 0; });
       if (exps.length) { setJSON('lct_exps', { day: today, list: exps }); populateExpDropdown(exps, today); }
-    } catch (e) { /* leave empty; populated on next refresh */ }
+    } catch (e) {}
   }
   function addSymbols(tickers) {
     var w = getWatchlist(), have = {}, added = 0;
@@ -353,8 +445,22 @@
   }
   function addPasted() {
     var n = addSymbols(E.parseTickerList($('w-paste').value));
-    $('w-paste').value = ''; $('w-msg').textContent = n ? ('Added ' + n + ' ticker(s). Click Refresh data for quotes.') : 'No new tickers.';
+    $('w-paste').value = ''; $('w-msg').textContent = n ? ('Added ' + n + ' ticker(s). Click Refresh data.') : 'No new tickers.';
     renderWatchlist();
+  }
+  function copyWatchlistTickers() {
+    var w = getWatchlist();
+    if (!w.length) { $('w-msg').textContent = 'No tickers to copy.'; return; }
+    var csv = w.map(function (it) { return it.ticker; }).join(',');
+    navigator.clipboard.writeText(csv).then(function () {
+      var btn = $('w-copy-tickers'); btn.textContent = '✅ Copied!';
+      $('w-msg').textContent = 'Copied ' + w.length + ' ticker(s): ' + csv;
+      setTimeout(function () { btn.textContent = '📋 Copy Tickers'; }, 2000);
+    }).catch(function () {
+      var ta = document.createElement('textarea'); ta.value = csv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      $('w-msg').textContent = 'Copied: ' + csv;
+    });
   }
   async function doSearch() {
     var q = ($('w-search').value || '').trim(), box = $('w-results');
@@ -443,7 +549,6 @@
     Array.prototype.forEach.call(tb.querySelectorAll('[data-rm]'), function (b) { b.onclick = function () { removeTicker(b.getAttribute('data-rm')); }; });
     Array.prototype.forEach.call(tb.querySelectorAll('[data-chain]'), function (b) { b.onclick = function () { toggleChain(b.getAttribute('data-chain'), b.parentNode.parentNode); }; });
   }
-
   function toggleChain(ticker, tr) {
     var nxt = tr.nextSibling;
     if (nxt && nxt.getAttribute && nxt.getAttribute('data-detail') === ticker) { nxt.parentNode.removeChild(nxt); return; }
@@ -461,9 +566,7 @@
       if (!exps.length) { td.innerHTML = '<span class="err">no expirations</span>'; return; }
       var dte = selectedTargetDte(), sel = nearestExp(exps, today, dte);
       var price = null; try { price = (await p.getStockQuote(ticker)).price; } catch (e) {}
-      td.innerHTML = '<div class="row" style="align-items:flex-end;margin-bottom:8px"><div class="field"><label>Expiration</label><select class="ic-exp">' +
-        exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd)</option>'; }).join('') +
-        '</select></div></div><div class="ic-table"></div>';
+      td.innerHTML = '<div class="row" style="align-items:flex-end;margin-bottom:8px"><div class="field"><label>Expiration</label><select class="ic-exp">' + exps.map(function (d) { return '<option value="' + d + '"' + (d === sel ? ' selected' : '') + '>' + d + ' (' + E.dteBetween(today, d) + 'd)</option>'; }).join('') + '</select></div></div><div class="ic-table"></div>';
       var expSel = td.querySelector('.ic-exp'), box = td.querySelector('.ic-table');
       expSel.onchange = function () { drawInlineStrikes(ticker, expSel.value, box, price); };
       drawInlineStrikes(ticker, sel, box, price);
@@ -487,21 +590,21 @@
   }
 
   function deleteCampaign(id) {
-    if (!window.confirm('Delete this campaign from the record? This cannot be undone.')) return;
+    if (!window.confirm('Delete this campaign? Cannot be undone.')) return;
     setPositions(getPositions().filter(function (c) { return c.id !== id; }));
     var h = getHistory(); h.events = (h.events || []).filter(function (e) { return e.campaign !== id; }); setHistory(h);
     if (gh().pat) pushState();
     render();
   }
   function clearAllPositions() {
-    if (!window.confirm('Clear ALL positions, events, and the equity curve? This cannot be undone.')) return;
+    if (!window.confirm('Clear ALL positions, events, and equity curve? Cannot be undone.')) return;
     setPositions([]); setHistory({ events: [], equity: [] });
     if (gh().pat) pushState();
     render();
   }
 
   /* ---------- render ---------- */
-  function render() { renderWatchlist(); renderPositions(); renderScorecard(); }
+  function render() { renderWatchlist(); renderPositions(); renderScorecard(); renderCalendar(); }
 
   function renderPositions() {
     var positions = getPositions();
@@ -517,49 +620,65 @@
       var nextUp = E.nextRollUpLevel(c, getConfig());
       var dte = E.dteBetween(today, leg.expiration);
       var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td>' + c.ticker + '</td>' +
-        '<td><span class="pill ' + c.status + '">' + (c.status === 'closed' ? (c.exitReason || 'closed') : 'open') + '</span></td>' +
-        '<td>' + fmt2(c.entryStockPrice) + '</td>' +
-        '<td>' + fmt2(c.stopLevel) + ' / ' + fmt2(c.emergencyLevel) + '</td>' +
-        '<td>' + fmt2(nextUp) + '</td>' +
-        '<td>' + leg.strike + 'C / ' + leg.expiration + ' / ' + fmt2(leg.deltaAtEntry) + ' / ' + dte + 'd</td>' +
-        '<td>' + c.contracts + '</td>' +
-        '<td>' + (mark != null ? fmt2(mark) : '-') + '</td>' +
-        '<td class="' + signClass(pnl) + '">' + (pnl != null ? fmtMoney(pnl) : '-') + '</td>' +
-        '<td class="' + signClass(r) + '">' + (r != null ? (r > 0 ? '+' : '') + r.toFixed(2) + 'R' : '-') + '</td>' +
-        '<td>' + (c.legs.length - 1) + '</td>' +
-        '<td>' + (c.status === 'open' ? '<button class="danger" data-close="' + c.id + '">Close</button> ' : '') + '<button class="danger" data-del="' + c.id + '" title="delete from record">x</button></td>';
+      tr.innerHTML = '<td>' + c.ticker + '</td><td><span class="pill ' + c.status + '">' + (c.status === 'closed' ? (c.exitReason || 'closed') : 'open') + '</span></td><td>' + fmt2(c.entryStockPrice) + '</td><td>' + fmt2(c.stopLevel) + ' / ' + fmt2(c.emergencyLevel) + '</td><td>' + fmt2(nextUp) + '</td><td>' + leg.strike + 'C / ' + leg.expiration + ' / ' + fmt2(leg.deltaAtEntry) + ' / ' + dte + 'd</td><td>' + c.contracts + '</td><td>' + (mark != null ? fmt2(mark) : '-') + '</td><td class="' + signClass(pnl) + '">' + (pnl != null ? fmtMoney(pnl) : '-') + '</td><td class="' + signClass(r) + '">' + (r != null ? (r > 0 ? '+' : '') + r.toFixed(2) + 'R' : '-') + '</td><td>' + (c.legs.length - 1) + '</td><td>' + (c.status === 'open' ? '<button class="danger" data-close="' + c.id + '">Close</button> ' : '') + '<button class="danger" data-del="' + c.id + '" title="delete">x</button></td>';
       tb.appendChild(tr);
     });
-    Array.prototype.forEach.call(tb.querySelectorAll('[data-close]'), function (b) {
-      b.onclick = function () { closeCampaign(b.getAttribute('data-close')); };
-    });
-    Array.prototype.forEach.call(tb.querySelectorAll('[data-del]'), function (b) {
-      b.onclick = function () { deleteCampaign(b.getAttribute('data-del')); };
-    });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-close]'), function (b) { b.onclick = function () { closeCampaign(b.getAttribute('data-close')); }; });
+    Array.prototype.forEach.call(tb.querySelectorAll('[data-del]'), function (b) { b.onclick = function () { deleteCampaign(b.getAttribute('data-del')); }; });
   }
 
   function renderScorecard() {
-    var s = E.scorecard(getPositions());
+    var positions = getPositions();
+    var s = E.scorecard(positions);
     var grid = $('sc-grid');
     var metrics = [
       ['Trades', s.trades], ['Win rate', (s.winRate * 100).toFixed(1) + '%'],
       ['Profit factor', isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'],
-      ['Expectancy', s.expectancyR.toFixed(2) + 'R'], ['Sortino', s.sortino.toFixed(2)],
-      ['Sharpe', s.sharpe.toFixed(2)], ['Max drawdown', fmtMoney(s.maxDrawdown)],
+      ['Expectancy', s.expectancyR.toFixed(2) + 'R'], ['Max drawdown', fmtMoney(s.maxDrawdown)],
       ['Payoff ratio', s.payoffRatio.toFixed(2)], ['Avg win', fmtMoney(s.avgWin)],
       ['Avg loss', fmtMoney(s.avgLoss)], ['Avg rolls', s.avgRolls.toFixed(2)],
+      ['Largest win', fmtMoney(s.largestWin)], ['Largest loss', fmtMoney(s.largestLoss)],
       ['Total P&L', fmtMoney(s.totalPnl)]
     ];
     grid.innerHTML = metrics.map(function (m) {
-      var cls = (m[0] === 'Total P&L') ? signClass(s.totalPnl) : '';
-      return '<div class="metric"><div class="v ' + cls + '">' + m[1] + '</div><div class="k">' + m[0] + '</div></div>';
+      var cls = (m[0] === 'Total P&L') ? signClass(s.totalPnl) : (m[0] === 'Largest win') ? 'pos' : (m[0] === 'Largest loss') ? 'neg' : '';
+      var tip = METRIC_TOOLTIPS[m[0]] || '';
+      return '<div class="metric"><div class="tooltip">' + tip + '</div><div class="v ' + cls + '">' + m[1] + '</div><div class="k">' + m[0] + '</div></div>';
     }).join('');
     var br = s.exitReasonBreakdown || {};
     var parts = Object.keys(br).map(function (k) { return k + ': ' + br[k]; });
     $('sc-breakdown').textContent = parts.length ? ('Exit reasons — ' + parts.join(', ')) : 'No closed campaigns yet.';
+    renderExitPerformance(positions);
     renderEquity();
+  }
+
+  function renderExitPerformance(positions) {
+    var closed = (positions || []).filter(function (c) { return c.status === 'closed'; });
+    var wrap = $('exit-perf-wrap');
+    if (!closed.length) { wrap.innerHTML = '<div class="hint">No closed campaigns yet.</div>'; return; }
+    var groups = {};
+    closed.forEach(function (c) {
+      var reason = c.exitReason || 'unknown';
+      if (!groups[reason]) groups[reason] = { trades: 0, wins: 0, pnls: [], Rs: [] };
+      var g = groups[reason];
+      g.trades++; if ((c.netPnl || 0) > 0) g.wins++;
+      g.pnls.push(c.netPnl || 0);
+      g.Rs.push(c.riskBudget ? (c.netPnl || 0) / c.riskBudget : 0);
+    });
+    var labels = {
+      take_profit: '💰 Take profit', trailing_stop: '📐 Trailing stop',
+      emergency: '🛑 Emergency stop', stop: '🔴 ATR stop',
+      stop_loss_pct: '⛔ Premium stop-loss', regime: '📉 Regime exit',
+      dte_close: '⏱️ DTE close', dte_roll: '⏱️ Time roll',
+      roll_up: '🎯 Winner roll-up', manual: '✋ Manual', unknown: '? Unknown'
+    };
+    function mean(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; }
+    var rows = Object.keys(groups).sort().map(function (reason) {
+      var g = groups[reason];
+      var totalPnl = g.pnls.reduce(function (s, x) { return s + x; }, 0);
+      return '<tr><td>' + (labels[reason] || reason) + '</td><td>' + g.trades + '</td><td>' + (g.wins / g.trades * 100).toFixed(0) + '%</td><td class="' + signClass(totalPnl) + '">' + fmtMoney(totalPnl) + '</td><td>' + mean(g.Rs).toFixed(2) + 'R</td><td class="' + signClass(mean(g.pnls)) + '">' + fmtMoney(mean(g.pnls)) + '</td></tr>';
+    }).join('');
+    wrap.innerHTML = '<table class="exit-perf-table"><thead><tr><th>Exit reason</th><th>Trades</th><th>Win %</th><th>Total P&L</th><th>Avg R</th><th>Avg P&L</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
 
   function renderEquity() {
@@ -567,23 +686,127 @@
     var box = $('equity');
     if (eq.length < 2) { box.innerHTML = '<div class="hint">Equity curve appears once there are at least two daily snapshots.</div>'; return; }
     var vals = eq.map(function (p) { return p.equity; });
-    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), W = 720, H = 140, pad = 8;
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), W = 720, H = 140, padV = 8;
     var span = (max - min) || 1;
-    var pts = vals.map(function (v, i) {
-      var x = pad + i * (W - 2 * pad) / (vals.length - 1);
-      var y = H - pad - (v - min) / span * (H - 2 * pad);
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
+    var pts = vals.map(function (v, i) { var x = padV + i * (W - 2 * padV) / (vals.length - 1); var y = H - padV - (v - min) / span * (H - 2 * padV); return x.toFixed(1) + ',' + y.toFixed(1); }).join(' ');
     var up = vals[vals.length - 1] >= vals[0];
-    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '">' +
-      '<polyline fill="none" stroke="' + (up ? 'var(--green)' : 'var(--red)') + '" stroke-width="2" points="' + pts + '"/></svg>' +
-      '<div class="hint">' + eq[0].date + ' → ' + eq[eq.length - 1].date + ' &middot; ' + fmtMoney(vals[0]) + ' → ' + fmtMoney(vals[vals.length - 1]) + '</div>';
+    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '"><polyline fill="none" stroke="' + (up ? 'var(--green)' : 'var(--red)') + '" stroke-width="2" points="' + pts + '"/></svg><div class="hint">' + eq[0].date + ' → ' + eq[eq.length - 1].date + ' &middot; ' + fmtMoney(vals[0]) + ' → ' + fmtMoney(vals[vals.length - 1]) + '</div>';
+  }
+
+  /* ---------- calendar ---------- */
+  var calState = { year: null, month: null };
+  function renderCalendar() {
+    var now = new Date();
+    if (calState.year === null) { calState.year = now.getFullYear(); calState.month = now.getMonth(); }
+    drawCalendar(calState.year, calState.month);
+  }
+  function buildDailyPnl() {
+    var map = {};
+    getPositions().forEach(function (c) {
+      if (c.status !== 'closed' || !c.netPnl) return;
+      var closeDate = null;
+      for (var i = c.legs.length - 1; i >= 0; i--) { if (c.legs[i].closedOn) { closeDate = c.legs[i].closedOn; break; } }
+      if (!closeDate) return;
+      if (!map[closeDate]) map[closeDate] = { pnl: 0, trades: [] };
+      map[closeDate].pnl += (c.netPnl || 0);
+      map[closeDate].trades.push(c);
+    });
+    return map;
+  }
+  function drawCalendar(year, month) {
+    var grid = $('cal-grid'); if (!grid) return;
+    var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    $('cal-month-label').textContent = monthNames[month] + ' ' + year;
+    var dailyPnl = buildDailyPnl();
+    var firstDay = new Date(year, month, 1).getDay();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var daysInPrev = new Date(year, month, 0).getDate();
+    var cells = [];
+    for (var i = 0; i < firstDay; i++) cells.push({ day: daysInPrev - firstDay + 1 + i, other: true });
+    for (var d = 1; d <= daysInMonth; d++) { var iso = year + '-' + pad(month + 1) + '-' + pad(d); cells.push({ day: d, iso: iso, data: dailyPnl[iso] || null }); }
+    var remaining = 42 - cells.length;
+    for (var j = 1; j <= remaining; j++) cells.push({ day: j, other: true });
+    grid.innerHTML = cells.map(function (cell) {
+      if (cell.other) return '<div class="cal-cell other-month"><div class="cal-day">' + cell.day + '</div></div>';
+      var hasPnl = cell.data && cell.data.pnl !== 0;
+      var cls = 'cal-cell' + (hasPnl ? ' has-pnl ' + signClass(cell.data.pnl) : '');
+      var pnlHtml = hasPnl ? '<div class="cal-pnl ' + signClass(cell.data.pnl) + '">' + fmtMoney(cell.data.pnl) + '</div>' : '';
+      return '<div class="' + cls + '" data-iso="' + cell.iso + '"><div class="cal-day">' + cell.day + '</div>' + pnlHtml + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(grid.querySelectorAll('.cal-cell.has-pnl'), function (el) { el.onclick = function () { showCalDetail(el.getAttribute('data-iso'), dailyPnl); }; });
+    var monthPnl = 0, monthTrades = 0;
+    Object.keys(dailyPnl).forEach(function (iso) {
+      if (iso.startsWith(year + '-' + pad(month + 1))) { monthPnl += dailyPnl[iso].pnl; monthTrades += dailyPnl[iso].trades.length; }
+    });
+    var summary = $('cal-monthly-summary');
+    if (summary) {
+      if (monthTrades > 0) { summary.innerHTML = '<strong>' + monthNames[month] + ' ' + year + '</strong>: ' + monthTrades + ' closed trade' + (monthTrades !== 1 ? 's' : '') + ' &middot; Total P&L: <span class="' + signClass(monthPnl) + '">' + fmtMoney(monthPnl) + '</span>'; summary.className = ''; }
+      else { summary.textContent = 'No closed trades in ' + monthNames[month] + ' ' + year + '.'; summary.className = 'hint'; }
+    }
+  }
+  function showCalDetail(iso, dailyPnl) {
+    var detailBox = $('cal-detail'), dateLabel = $('cal-detail-date'), tb = $('cal-detail-table').querySelector('tbody');
+    if (!dailyPnl[iso]) { detailBox.style.display = 'none'; return; }
+    dateLabel.textContent = iso; tb.innerHTML = '';
+    dailyPnl[iso].trades.forEach(function (c) {
+      var r = (c.netPnl != null && c.riskBudget) ? c.netPnl / c.riskBudget : null;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + c.ticker + '</td><td>' + (c.exitReason || '-') + '</td><td>' + (c.legs.length - 1) + ' roll' + (c.legs.length !== 2 ? 's' : '') + '</td><td class="' + signClass(c.netPnl) + '">' + fmtMoney(c.netPnl) + '</td><td class="' + signClass(r) + '">' + (r != null ? (r > 0 ? '+' : '') + r.toFixed(2) + 'R' : '-') + '</td>';
+      tb.appendChild(tr);
+    });
+    detailBox.style.display = 'block';
   }
 
   /* ---------- settings ---------- */
+  function renderExitRules() {
+    var cfg = getConfig();
+    var strategy = cfg.exitStrategy || 'standard';
+    var rules = EXIT_STRATEGY_RULES[strategy] || EXIT_STRATEGY_RULES.standard;
+    var box = $('exit-rules-display'); if (!box) return;
+    var lastHourOn = cfg.lastHourOnly !== false;
+    var regimeOn = cfg.regimeExitEnabled !== false;
+    box.innerHTML = rules.map(function (r) {
+      // override active state based on live toggles
+      var isRegime = r.name === 'Regime exit';
+      var isLastHourRule = ['ATR stop', 'Time roll', 'Winner roll-up'].indexOf(r.name) >= 0;
+      var active = r.active;
+      if (isRegime && !regimeOn) active = false;
+      var dimmed = !active ? ' style="opacity:0.4"' : '';
+      var extraNote = '';
+      if (isLastHourRule && !lastHourOn) extraNote = ' <span style="font-size:10px;color:var(--green)">(all-day)</span>';
+      if (isRegime && !regimeOn) extraNote = ' <span style="font-size:10px;color:var(--muted)">(disabled)</span>';
+      return '<div class="exit-rule"' + dimmed + '><div class="exit-rule-badge">' + r.badge + ' ' + r.name + (active ? '' : ' <span style="font-size:10px;color:var(--muted)">(off)</span>') + extraNote + '</div><div class="exit-rule-body"><div>' + r.desc + '</div>' + (r.trigger ? '<div class="exit-rule-trigger">⏰ ' + (isLastHourRule && !lastHourOn ? 'All day (last-hour restriction disabled)' : r.trigger) + '</div>' : '') + '</div></div>';
+    }).join('');
+  }
+  function onExitStrategyChange() {
+    var strategy = $('s-exit-strategy').value;
+    var preset = EXIT_PRESETS[strategy] || EXIT_PRESETS.standard;
+    if (strategy !== 'custom') {
+      $('s-atr-stop').value = preset.atrStopMult;
+      $('s-atr-emerg').value = preset.atrEmergencyMult;
+      $('s-dte-trigger').value = preset.dteRollTrigger;
+      $('s-ru-dmin').value = preset.rollUpDeltaBand[0];
+      $('s-ru-dmax').value = preset.rollUpDeltaBand[1];
+      $('s-take-profit').value = preset.takeProfitPct || 0;
+      $('s-stop-loss-pct').value = preset.stopLossPct || 0;
+      $('s-trailing-stop').value = preset.trailingStopPct || 0;
+    }
+    renderExitRules();
+  }
   function loadSettings() {
     var c = getConfig();
     $('s-bal').value = c.accountBalance; $('s-risk').value = c.riskPct;
+    $('s-exit-strategy').value = c.exitStrategy || 'standard';
+    $('s-atr-stop').value = c.atrStopMult || 1;
+    $('s-atr-emerg').value = c.atrEmergencyMult || 3;
+    $('s-dte-trigger').value = c.dteRollTrigger || 7;
+    $('s-ru-dmin').value = (c.rollUpDeltaBand || [0.65, 0.85])[0];
+    $('s-ru-dmax').value = (c.rollUpDeltaBand || [0.65, 0.85])[1];
+    $('s-take-profit').value = c.takeProfitPct || 0;
+    $('s-stop-loss-pct').value = c.stopLossPct || 0;
+    $('s-trailing-stop').value = c.trailingStopPct || 0;
+    $('s-last-hour-only').checked = c.lastHourOnly !== false;
+    $('s-regime-exit').checked = c.regimeExitEnabled !== false;
     $('s-p-opt').value = c.providers.optionsGreeks; $('s-p-eq').value = c.providers.equityPriceAtr; $('s-p-spy').value = c.providers.spyEma;
     $('s-fmp').value = lsGet('lct_fmp', ''); $('s-tproxy').value = lsGet('lct_tproxy', '');
     $('s-tlive').value = lsGet('lct_tlive', ''); $('s-ttok').value = lsGet('lct_ttok', '');
@@ -591,11 +814,23 @@
     $('s-akey').value = lsGet('lct_akey', ''); $('s-asec').value = lsGet('lct_asec', '');
     $('s-gh-owner').value = lsGet('lct_gh_owner', ''); $('s-gh-repo').value = lsGet('lct_gh_repo', '');
     $('s-gh-branch').value = lsGet('lct_gh_branch', 'main'); $('s-gh-pat').value = lsGet('lct_gh_pat', '');
+    renderExitRules();
   }
   function saveSettings() {
     var c = getConfig();
     c.accountBalance = parseFloat($('s-bal').value) || c.accountBalance;
     c.riskPct = parseFloat($('s-risk').value) || c.riskPct;
+    c.exitStrategy = $('s-exit-strategy').value;
+    c.atrStopMult = parseFloat($('s-atr-stop').value) || 1;
+    c.atrEmergencyMult = parseFloat($('s-atr-emerg').value) || 3;
+    c.dteRollTrigger = parseInt($('s-dte-trigger').value) || 7;
+    var dmin = parseFloat($('s-ru-dmin').value), dmax = parseFloat($('s-ru-dmax').value);
+    c.rollUpDeltaBand = [isFinite(dmin) ? dmin : 0.65, isFinite(dmax) ? dmax : 0.85];
+    c.takeProfitPct = parseFloat($('s-take-profit').value) || 0;
+    c.stopLossPct = parseFloat($('s-stop-loss-pct').value) || 0;
+    c.trailingStopPct = parseFloat($('s-trailing-stop').value) || 0;
+    c.lastHourOnly = $('s-last-hour-only').checked;
+    c.regimeExitEnabled = $('s-regime-exit').checked;
     c.providers = { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value };
     setConfig(c);
     lsSet('lct_fmp', $('s-fmp').value); lsSet('lct_tproxy', $('s-tproxy').value);
@@ -605,24 +840,18 @@
     lsSet('lct_gh_owner', $('s-gh-owner').value); lsSet('lct_gh_repo', $('s-gh-repo').value);
     lsSet('lct_gh_branch', $('s-gh-branch').value || 'main'); lsSet('lct_gh_pat', $('s-gh-pat').value);
     $('s-msg').textContent = 'Saved.'; setTimeout(function () { $('s-msg').textContent = ''; }, 2000);
-    render();
+    renderExitRules(); render();
   }
   async function testConnection() {
-    var box = $('s-test-msg'); box.className = 'hint'; box.textContent = 'testing (using the values in the fields above)...';
+    var box = $('s-test-msg'); box.className = 'hint'; box.textContent = 'testing...';
     var cfg = Object.assign({}, getConfig(), { providers: { optionsGreeks: $('s-p-opt').value, equityPriceAtr: $('s-p-eq').value, spyEma: $('s-p-spy').value } });
-    var sec = {
-      fmpKey: $('s-fmp').value, tradierProxy: $('s-tproxy').value, tradierLiveToken: $('s-tlive').value,
-      tradierToken: $('s-ttok').value, tradierEnv: $('s-tenv').value, tradierAccount: $('s-tacct').value,
-      alpacaKey: $('s-akey').value, alpacaSecret: $('s-asec').value
-    };
+    var sec = { fmpKey: $('s-fmp').value, tradierProxy: $('s-tproxy').value, tradierLiveToken: $('s-tlive').value, tradierToken: $('s-ttok').value, tradierEnv: $('s-tenv').value, tradierAccount: $('s-tacct').value, alpacaKey: $('s-akey').value, alpacaSecret: $('s-asec').value };
     var p = DP.createProvider(cfg, sec), out = [];
-    try { var q = await p.getStockQuote('SPY'); out.push('equity/' + cfg.providers.equityPriceAtr + ': OK ($' + fmt2(q.price) + ')'); }
-    catch (e) { out.push('equity/' + cfg.providers.equityPriceAtr + ': ' + e.message); }
-    try { var ex = await p.getExpirations('SPY'); out.push('options/' + cfg.providers.optionsGreeks + ': OK (' + ex.length + ' expirations)'); }
-    catch (e) { out.push('options/' + cfg.providers.optionsGreeks + ': ' + e.message); }
+    try { var q = await p.getStockQuote('SPY'); out.push('equity/' + cfg.providers.equityPriceAtr + ': OK ($' + fmt2(q.price) + ')'); } catch (e) { out.push('equity/' + cfg.providers.equityPriceAtr + ': ' + e.message); }
+    try { var ex = await p.getExpirations('SPY'); out.push('options/' + cfg.providers.optionsGreeks + ': OK (' + ex.length + ' expirations)'); } catch (e) { out.push('options/' + cfg.providers.optionsGreeks + ': ' + e.message); }
     var bad = out.some(function (r) { return r.indexOf('OK') < 0; });
     box.className = bad ? 'err' : 'pos';
-    box.textContent = out.join('   |   ') + (bad && /401/.test(out.join(' ')) ? '  — 401 = bad/empty token or sandbox key on the production host; check the environment toggle and the key.' : '');
+    box.textContent = out.join('   |   ') + (bad && /401/.test(out.join(' ')) ? '  — 401 = bad token or wrong environment.' : '');
   }
 
   /* ---------- tabs + init ---------- */
@@ -630,16 +859,13 @@
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === name); });
     Array.prototype.forEach.call(document.querySelectorAll('main section'), function (s) { s.classList.toggle('active', s.id === name); });
     if (name === 'watchlist') ensureExpirations(false);
+    if (name === 'calendar') renderCalendar();
   }
-
   function init() {
-    // seed config from bundled config.json if not customized yet
     if (localStorage.getItem('lct_config') == null) {
       fetch('config.json').then(function (r) { return r.json(); }).then(function (j) { setConfig(j); loadSettings(); }).catch(function () {});
     }
     $('t-date').value = isoToday();
-    // one-time repair: ensure every stored campaign has a unique id so per-row
-    // delete/close target exactly one campaign (legacy data used a non-unique id).
     setPositions(E.dedupeCampaignIds(getPositions()));
     Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) { b.onclick = function () { showTab(b.getAttribute('data-tab')); }; });
     $('t-load').onclick = loadChain;
@@ -650,6 +876,7 @@
     $('pos-clear').onclick = clearAllPositions;
     $('s-save').onclick = saveSettings;
     $('s-test').onclick = testConnection;
+    $('s-exit-strategy').onchange = onExitStrategyChange;
     $('gh-pull').onclick = pullFromRepo;
     $('gh-push').onclick = pushState;
     $('w-add').onclick = addPasted;
@@ -658,13 +885,22 @@
     $('w-refresh').onclick = refreshWatchlist;
     $('w-scan').onclick = premarketScan;
     $('w-clear').onclick = clearWatchlist;
+    $('w-copy-tickers').onclick = copyWatchlistTickers;
+    $('cal-prev').onclick = function () { calState.month--; if (calState.month < 0) { calState.month = 11; calState.year--; } drawCalendar(calState.year, calState.month); };
+    $('cal-next').onclick = function () { calState.month++; if (calState.month > 11) { calState.month = 0; calState.year++; } drawCalendar(calState.year, calState.month); };
+    $('copy-app-url').onclick = function () {
+      var url = 'https://alexreed122287.github.io/long-call-tracker/';
+      navigator.clipboard.writeText(url).then(function () {
+        $('copy-app-url').textContent = '✅ Copied!';
+        setTimeout(function () { $('copy-app-url').textContent = '📋 Copy link'; }, 2000);
+      }).catch(function () { $('share-app-url').select(); document.execCommand('copy'); });
+    };
     loadSettings();
     render();
     ensureExpirations(false);
     // open-tab tracking: poll every 90s when keys are configured
     setInterval(function () { var s = secrets(); if (s.fmpKey || s.tradierLiveToken || s.tradierToken || s.tradierProxy || s.alpacaKey) tick(); }, 90000);
   }
-
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   window.LCT = { tick: tick, render: render };
 })();
