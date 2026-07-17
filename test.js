@@ -1,5 +1,6 @@
 /* Run: node test.js */
 var E = require('./engine.js');
+var DP = require('./dataProvider.js');
 var pass = 0, fail = 0;
 
 function eq(actual, expected, msg) {
@@ -45,14 +46,25 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   ok(E.liquidityOK(null, 500, 0.10) === false, 'liquidityOK fail null contract');
 })();
 
-// sizePosition
+// contractsForBudget — premium-based sizing used by the dashboard
 (function () {
-  var r = E.sizePosition({ budget: 50000, delta: 0.72, atr: 4.10, entryMark: 9.40 });
-  approx(r.lossPerContract, 295.2, 1e-6, 'sizePosition loss per contract = delta*atr*100');
-  eq(r.contracts, 169, 'sizePosition contracts = floor(50000/295.2)');
-  approx(r.premium, 158860, 1e-6, 'sizePosition premium = mark*100*contracts');
-  eq(r.riskBudget, 50000, 'sizePosition echoes risk budget');
-  eq(E.sizePosition({ budget: 100, delta: 0.9, atr: 5, entryMark: 1 }).contracts, 1, 'sizePosition floors to min 1 contract');
+  eq(E.contractsForBudget(50000, 9.40), 53, 'contractsForBudget = floor(budget/(mark*100))');
+  eq(E.contractsForBudget(50000, 5.00), 100, 'contractsForBudget exact division');
+  eq(E.contractsForBudget(100, 9.40), 1, 'contractsForBudget floors to min 1 when affordable budget > 0');
+  eq(E.contractsForBudget(50000, 0), 0, 'contractsForBudget 0 on zero mark');
+  eq(E.contractsForBudget(50000, -1), 0, 'contractsForBudget 0 on negative mark');
+  eq(E.contractsForBudget(0, 9.40), 0, 'contractsForBudget 0 on zero budget');
+  eq(E.contractsForBudget(NaN, 9.40), 0, 'contractsForBudget 0 on NaN budget');
+  eq(E.contractsForBudget(50000, NaN), 0, 'contractsForBudget 0 on NaN mark');
+})();
+
+// nextRollUpLevel — honors cfg.atrRollUpStep
+(function () {
+  var camp = { entryStockPrice: 100, atrAtEntry: 4, rollUpStepsTaken: 0 };
+  approx(E.nextRollUpLevel(camp, { atrRollUpStep: 1 }), 104, 1e-9, 'nextRollUpLevel first step = entry + 1 ATR');
+  approx(E.nextRollUpLevel({ entryStockPrice: 100, atrAtEntry: 4, rollUpStepsTaken: 2 }, { atrRollUpStep: 1 }), 112, 1e-9, 'nextRollUpLevel third step');
+  approx(E.nextRollUpLevel(camp, { atrRollUpStep: 1.5 }), 106, 1e-9, 'nextRollUpLevel honors atrRollUpStep 1.5');
+  approx(E.nextRollUpLevel(camp, {}), 104, 1e-9, 'nextRollUpLevel defaults step to 1');
 })();
 
 // isLastHour
@@ -139,6 +151,33 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
 
   eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: last, spyRegimeCross: false, currentDTE: 40, rollCandidates: rollCands }, cfg),
      { type: 'none' }, 'no exit when nothing triggers');
+
+  // a failed quote (price 0/undefined) must never read as an emergency hit
+  eq(E.evaluateExits(camp, { stockPrice: 0, etMinutes: noon, spyRegimeCross: false, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'none', flag: 'no_quote' }, 'price 0 skips the cycle instead of phantom emergency close');
+  eq(E.evaluateExits(camp, { stockPrice: undefined, etMinutes: last, spyRegimeCross: true, currentDTE: 40, rollCandidates: [] }, cfg),
+     { type: 'none', flag: 'no_quote' }, 'missing price skips even when regime would fire');
+
+  // expired legs settle instead of evaluating market rules
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: noon, spyRegimeCross: false, currentDTE: -1, rollCandidates: [] }, cfg),
+     { type: 'close', reason: 'expiry' }, 'negative DTE closes with reason expiry');
+  eq(E.evaluateExits(camp, { stockPrice: 211, etMinutes: noon, spyRegimeCross: false, currentDTE: 0, rollCandidates: [] }, cfg).reason !== 'expiry', true,
+     'expiration day itself still trades normal rules');
+})();
+
+// expiry settlement books intrinsic, not the stale quote mark
+(function () {
+  var base = {
+    id: 'X-1', ticker: 'X', status: 'open', contracts: 10,
+    entryStockPrice: 210, atrAtEntry: 4, rollUpStepsTaken: 0,
+    legs: [{ strike: 205, expiration: '2026-07-10', deltaAtEntry: 0.7, entryMark: 9.00,
+             exitMark: null, exitReason: null, realizedPnl: null, openedOn: '2026-06-19', closedOn: null }]
+  };
+  var out = E.applyAction(base, { type: 'close', reason: 'expiry' }, { currentMark: 0.02, stockPrice: 212, today: '2026-07-13' });
+  approx(out.campaign.legs[0].exitMark, 7, 1e-9, 'expiry settles at intrinsic max(0, stock-strike)');
+  approx(out.campaign.netPnl, -2000, 1e-6, 'expiry P&L uses intrinsic (7-9)*100*10');
+  var otm = E.applyAction(base, { type: 'close', reason: 'expiry' }, { currentMark: 0.5, stockPrice: 200, today: '2026-07-13' });
+  approx(otm.campaign.legs[0].exitMark, 0, 1e-9, 'OTM expiry settles at 0');
 })();
 
 // computeCampaignPnl + applyAction
@@ -207,7 +246,35 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
 (function () {
   eq(E.occSymbol('AAPL', '2026-07-18', 'C', 205), 'AAPL260718C00205000', 'occSymbol builds OCC string');
   eq(E.occSymbol('spy', '2026-08-21', 'C', 540.5), 'SPY260821C00540500', 'occSymbol handles fractional strike + lowercase');
+  eq(E.occSymbol('BRK.B', '2026-08-21', 'C', 500), 'BRKB260821C00500000', 'occSymbol strips punctuation for class shares');
   eq(E.dteBetween('2026-06-19', '2026-07-18'), 29, 'dteBetween counts calendar days');
+})();
+
+// scorecard drawdown uses close order, not entry order
+(function () {
+  function closedCamp(pnl, closedOn) {
+    return { status: 'closed', netPnl: pnl, riskBudget: 1000, exitReason: 'stop', legs: [{ closedOn: closedOn }] };
+  }
+  // Close-order path: +2000, -1500, +3000, -500 -> cum 2000,500,3500,3000 -> MDD 1500.
+  // The entry order below would naively give -1500,-2000,0,3000 -> MDD 2000.
+  var camps = [
+    closedCamp(-1500, '2026-07-02'), closedCamp(-500, '2026-07-04'),
+    closedCamp(2000, '2026-07-01'), closedCamp(3000, '2026-07-03')
+  ];
+  approx(E.scorecard(camps).maxDrawdown, 1500, 1e-9, 'maxDrawdown follows close-date path, not entry order');
+  approx(E.scorecard(camps.slice().reverse()).maxDrawdown, 1500, 1e-9, 'maxDrawdown invariant to input order');
+})();
+
+// sortino with non-zero expectancy (denominator actually exercised)
+(function () {
+  var camps = [
+    { status: 'closed', netPnl: 3000, riskBudget: 1000, exitReason: 'roll_up_chain', legs: [{}] },
+    { status: 'closed', netPnl: -1000, riskBudget: 1000, exitReason: 'stop', legs: [{}] }
+  ];
+  var s = E.scorecard(camps);
+  approx(s.expectancyR, 1.0, 1e-9, 'expectancy (3-1)/2 = 1R');
+  // downsideDev = sqrt(mean(min(0,x)^2)) = sqrt((0+1)/2) = 0.7071
+  approx(s.sortino, 1.0 / Math.sqrt(0.5), 1e-6, 'sortino = meanR/downsideDev with real downside');
 })();
 
 // parseTickerList
@@ -313,6 +380,32 @@ function ok(cond, msg) { if (cond) { pass++; } else { fail++; console.error('FAI
   eq(w[w.length - 1].strike, 125, 'windowStrikes highest = 15 strikes above spot');
   eq(E.windowStrikes([{ strike: 100 }, { strike: 105 }, { strike: 110 }], 104, 15, 15).length, 3, 'windowStrikes returns all when fewer than the window');
   eq(E.windowStrikes(chain, null, 15, 15).length, 30, 'windowStrikes falls back to first 30 without a ref price');
+})();
+
+// data-provider quote parsers must THROW on unusable quotes, never price 0
+// (price 0 reads as an emergency-stop hit and phantom-closes campaigns)
+(function () {
+  function throws(fn, msg) { try { fn(); fail++; console.error('FAIL: ' + msg + ' (did not throw)'); } catch (e) { pass++; } }
+  throws(function () { DP.parseTradierQuotePrice({ quotes: { unmatched_symbols: { symbol: 'ZZZZ' } } }); }, 'tradier quote throws on unmatched symbol');
+  throws(function () { DP.parseTradierQuotePrice({ quotes: { quote: { symbol: 'HALT', last: null, close: null } } }); }, 'tradier quote throws when last+close null');
+  throws(function () { DP.parseFmpQuotePrice([]); }, 'fmp quote throws on empty response');
+  throws(function () { DP.parseAlpacaTrade({}); }, 'alpaca trade throws on missing trade');
+  var q = DP.parseTradierQuotePrice({ quotes: { quote: { symbol: 'AAPL', last: 210.5, prevclose: 208.0 } } });
+  approx(q.price, 210.5, 1e-9, 'tradier quote price passes through');
+  approx(q.prevClose, 208.0, 1e-9, 'tradier quote carries prevclose');
+  var f = DP.parseFmpQuotePrice([{ price: 101.5, previousClose: 100.0 }]);
+  approx(f.prevClose, 100.0, 1e-9, 'fmp quote carries previousClose');
+})();
+
+// intraday-at parser: requested time before the first bar -> first bar (open)
+(function () {
+  var rows = [
+    { date: '2026-07-17 09:30', close: 100 },
+    { date: '2026-07-17 09:35', close: 101 },
+    { date: '2026-07-17 15:55', close: 105 }
+  ];
+  approx(DP.parseFmpIntradayAt(rows, '09:20').price, 100, 1e-9, 'intradayAt before first bar returns the open, not the close');
+  approx(DP.parseFmpIntradayAt(rows, '09:36').price, 101, 1e-9, 'intradayAt picks last bar at/before requested time');
 })();
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

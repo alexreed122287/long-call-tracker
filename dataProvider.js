@@ -11,7 +11,9 @@
 
   function defaultHttpJson(url, headers) {
     return fetch(url, { headers: headers || {} }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url);
+      // strip the query string from error text: it can carry API keys, and
+      // these messages end up in the DOM and in Actions logs
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url.split('?')[0]);
       return r.json();
     });
   }
@@ -37,13 +39,17 @@
       var t = ((rows[i].date || '').split(' ')[1] || '').slice(0, 5);
       if (t <= etHHMM) chosen = rows[i]; else break;
     }
-    if (!chosen) chosen = rows[rows.length - 1] || null;
+    // requested time precedes the first bar: the open is the honest answer,
+    // not the day's last bar (the close)
+    if (!chosen) chosen = rows[0] || null;
     return chosen ? { price: +chosen.close } : null;
   }
 
   function parseFmpQuotePrice(a) {
     var q = (a || [])[0] || {};
-    return { price: +q.price, prevClose: (q.previousClose != null) ? +q.previousClose : null };
+    var price = +q.price;
+    if (!isFinite(price) || price <= 0) throw new Error('no quote for symbol');
+    return { price: price, prevClose: (q.previousClose != null) ? +q.previousClose : null };
   }
 
   function parseFmpSearch(arr) {
@@ -105,13 +111,14 @@
     };
   }
 
+  // A failed/unmatched quote must THROW, never return price 0 — a zero price
+  // reads as an emergency-stop hit downstream and phantom-closes campaigns.
   function parseTradierQuotePrice(json) {
     var q = json && json.quotes && json.quotes.quote;
     if (Array.isArray(q)) q = q[0];
-    return {
-      price: q ? (+q.last || +q.close || 0) : 0,
-      prevClose: (q && q.prevclose != null) ? +q.prevclose : null
-    };
+    var price = q ? (+q.last || +q.close || 0) : 0;
+    if (!(price > 0)) throw new Error('no quote for symbol');
+    return { price: price, prevClose: (q.prevclose != null) ? +q.prevclose : null };
   }
 
   function parseAlpacaBars(json) {
@@ -127,7 +134,9 @@
 
   function parseAlpacaTrade(json) {
     var t = json && json.trade;
-    return { price: t ? +t.p : 0 };
+    var price = t ? +t.p : 0;
+    if (!(price > 0)) throw new Error('no trade for symbol');
+    return { price: price, prevClose: null };
   }
 
   /* ---------- provider factory ---------- */
@@ -159,6 +168,20 @@
     function alpacaGet(url) {
       return httpJson(url, { 'APCA-API-KEY-ID': secrets.alpacaKey || '', 'APCA-API-SECRET-KEY': secrets.alpacaSecret || '' });
     }
+    // Follow next_page_token so option snapshots aren't silently truncated at
+    // the first ~1000 contracts (capped at 5 pages as a runaway guard).
+    function alpacaGetAllSnapshots(url) {
+      function step(acc, pageUrl, hops) {
+        return alpacaGet(pageUrl).then(function (j) {
+          var snaps = (j && j.snapshots) || {};
+          Object.keys(snaps).forEach(function (k) { acc.snapshots[k] = snaps[k]; });
+          var tok = j && j.next_page_token;
+          if (tok && hops < 5) return step(acc, url + '&page_token=' + encodeURIComponent(tok), hops + 1);
+          return acc;
+        });
+      }
+      return step({ snapshots: {} }, url, 0);
+    }
 
     function dailyBars(name, sym, from, to) {
       if (name === 'tradier') return tradierGet('/v1/markets/history?symbol=' + sym + '&interval=daily&start=' + from + '&end=' + to).then(parseTradierHistory);
@@ -188,10 +211,18 @@
             });
         }
         if (equity === 'alpaca') {
-          return alpacaGet('https://data.alpaca.markets/v2/stocks/' + sym + '/bars?timeframe=5Min&start=' + dateISO + 'T13:30:00Z&end=' + dateISO + 'T20:00:00Z&limit=200')
+          // Wide UTC window (covers EST and EDT), then pick the bar at the
+          // requested ET time instead of blindly returning the day's last bar.
+          return alpacaGet('https://data.alpaca.markets/v2/stocks/' + sym + '/bars?timeframe=5Min&start=' + dateISO + 'T12:00:00Z&end=' + dateISO + 'T22:00:00Z&limit=500')
             .then(function (j) {
-              var bars = parseAlpacaBars(j);
-              return bars.length ? { price: bars[bars.length - 1].c } : null;
+              var raw = (j && j.bars) || [];
+              if (raw && !Array.isArray(raw)) { var ks = Object.keys(raw); raw = ks.length ? raw[ks[0]] : []; }
+              var fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+              var rows = raw.map(function (b) {
+                var p = {}; fmt.formatToParts(new Date(b.t)).forEach(function (x) { p[x.type] = x.value; });
+                return { date: dateISO + ' ' + p.hour + ':' + p.minute, close: +b.c };
+              });
+              return parseFmpIntradayAt(rows, etHHMM);
             });
         }
         return fmpGet('historical-chart/5min?symbol=' + sym + '&from=' + dateISO + '&to=' + dateISO).then(function (a) { return parseFmpIntradayAt(a, etHHMM); });
@@ -199,7 +230,7 @@
 
       getOptionChain: function (sym, expiration) {
         if (options === 'tradier') return tradierGet('/v1/markets/options/chains?symbol=' + sym + '&expiration=' + expiration + '&greeks=true').then(parseTradierChain);
-        if (options === 'alpaca') return alpacaGet('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?expiration_date=' + expiration + '&type=call&limit=1000').then(parseAlpacaOptionSnapshots(expiration));
+        if (options === 'alpaca') return alpacaGetAllSnapshots('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?expiration_date=' + expiration + '&type=call&limit=1000').then(parseAlpacaOptionSnapshots(expiration));
         throw new Error('FMP does not support option chains; set providers.optionsGreeks to tradier or alpaca');
       },
 
@@ -219,7 +250,7 @@
       getExpirations: function (sym) {
         if (options === 'tradier') return tradierGet('/v1/markets/options/expirations?symbol=' + sym).then(parseTradierExpirations);
         if (options === 'alpaca') {
-          return alpacaGet('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?type=call&limit=1000').then(function (j) {
+          return alpacaGetAllSnapshots('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?type=call&limit=1000').then(function (j) {
             var rows = parseAlpacaOptionSnapshots(null)(j), set = {};
             rows.forEach(function (c) { if (c.expiration) set[c.expiration] = 1; });
             return Object.keys(set).sort();
@@ -232,7 +263,14 @@
         if (options === 'tradier') {
           return tradierGet('/v1/markets/options/expirations?symbol=' + sym).then(function (j) {
             var ex = j && j.expirations && j.expirations.date; if (!Array.isArray(ex)) ex = ex ? [ex] : [];
-            var future = ex.filter(function (d) { return _dte(todayISO, d) > 0; }).slice(0, 5);
+            // Mix near expirations (roll-up) with >=25 DTE ones (time-roll needs
+            // >=30 DTE); first-5-only starves weekly-chain tickers of time-roll
+            // candidates because Mon/Wed/Fri weeklies eat all five slots.
+            var all = ex.filter(function (d) { return _dte(todayISO, d) > 0; });
+            var near = all.slice(0, 3);
+            var far = all.filter(function (d) { return _dte(todayISO, d) >= 25; }).slice(0, 3);
+            var seen = {}, future = [];
+            near.concat(far).forEach(function (d) { if (!seen[d]) { seen[d] = 1; future.push(d); } });
             return Promise.all(future.map(function (d) {
               return tradierGet('/v1/markets/options/chains?symbol=' + sym + '&expiration=' + d + '&greeks=true').then(parseTradierChain);
             })).then(function (chains) {
@@ -245,7 +283,7 @@
           });
         }
         if (options === 'alpaca') {
-          return alpacaGet('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?type=call&limit=1000').then(function (j) {
+          return alpacaGetAllSnapshots('https://data.alpaca.markets/v1beta1/options/snapshots/' + sym + '?type=call&limit=1000').then(function (j) {
             var rows = parseAlpacaOptionSnapshots(null)(j);
             rows.forEach(function (c) { c.dte = _dte(todayISO, c.expiration); });
             return rows.filter(function (c) { return c.dte > 0; });
@@ -275,8 +313,9 @@
   }
   function parseAlpacaOptionQuote(occ) {
     return function (json) {
-      var s = (json && json.snapshots && json.snapshots[occ]) || {};
-      var q = s.latestQuote || {}, g = s.greeks || {};
+      var s = json && json.snapshots && json.snapshots[occ];
+      if (!s || !s.latestQuote) throw new Error('no option quote for ' + occ);
+      var q = s.latestQuote, g = s.greeks || {};
       var bid = +q.bp || 0, ask = +q.ap || 0;
       return { mark: (bid && ask) ? (bid + ask) / 2 : 0, delta: (g.delta != null) ? +g.delta : NaN, bid: bid, ask: ask, oi: +s.openInterest || 0 };
     };

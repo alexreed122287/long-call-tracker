@@ -39,15 +39,19 @@
     return ((ask - bid) / mid) <= maxSpreadPct;
   }
 
-  function sizePosition(p) {
-    var lossPerContract = p.delta * p.atr * 100;
-    var contracts = Math.max(1, Math.floor(p.budget / lossPerContract));
-    return {
-      contracts: contracts,
-      lossPerContract: lossPerContract,
-      premium: (p.entryMark || 0) * 100 * contracts,
-      riskBudget: p.budget
-    };
+  // Premium-based sizing: buy floor(budget / cost-per-contract) contracts so
+  // the full premium outlay is at most the risk budget. Returns 0 (not 1)
+  // when the inputs cannot produce a priceable contract.
+  function contractsForBudget(budget, mark) {
+    if (!isFinite(budget) || !isFinite(mark) || budget <= 0 || mark <= 0) return 0;
+    return Math.max(1, Math.floor(budget / (mark * 100)));
+  }
+
+  // Next stock level that triggers a winner roll-up, honoring cfg.atrRollUpStep.
+  function nextRollUpLevel(campaign, cfg) {
+    var stepMult = (cfg && cfg.atrRollUpStep) || 1;
+    var k = (campaign.rollUpStepsTaken || 0) + 1;
+    return campaign.entryStockPrice + k * stepMult * campaign.atrAtEntry;
   }
 
   function parseHM(s) { var p = (s || '').split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
@@ -94,6 +98,13 @@
   }
 
   function evaluateExits(campaign, ctx, cfg) {
+    // A missing/failed stock quote must never read as "price hit zero" — that
+    // would fire the emergency stop and book a phantom close. Skip the cycle.
+    if (!(ctx.stockPrice > 0)) return { type: 'none', flag: 'no_quote' };
+
+    // Rule 0: expired leg — no longer tradeable, settle at intrinsic.
+    if (ctx.currentDTE < 0) return { type: 'close', reason: 'expiry' };
+
     var lv = atrLevels(campaign.entryStockPrice, campaign.atrAtEntry, cfg);
     var last = isLastHour(ctx.etMinutes, cfg);
 
@@ -122,9 +133,9 @@
         return { type: 'close', reason: 'dte_close' };
       }
 
-      // Rule 5: winner roll-up at each new +1 ATR step
+      // Rule 5: winner roll-up at each new +atrRollUpStep ATR step
       var k = (campaign.rollUpStepsTaken || 0) + 1;
-      if (ctx.stockPrice >= campaign.entryStockPrice + k * campaign.atrAtEntry) {
+      if (ctx.stockPrice >= nextRollUpLevel(campaign, cfg)) {
         var rollU = pickRollContract(ctx.rollCandidates, {
           mode: 'up',
           deltaBand: cfg.rollUpDeltaBand,
@@ -158,10 +169,13 @@
     var openLeg = camp.legs[camp.legs.length - 1];
 
     if (action.type === 'close') {
-      openLeg.exitMark = ctx.currentMark;
+      // Expired legs settle at intrinsic — the quote mark is stale/worthless.
+      var settleMark = (action.reason === 'expiry' && ctx.stockPrice > 0)
+        ? Math.max(0, ctx.stockPrice - openLeg.strike) : ctx.currentMark;
+      openLeg.exitMark = settleMark;
       openLeg.exitReason = action.reason;
       openLeg.closedOn = ctx.today;
-      openLeg.realizedPnl = (ctx.currentMark - openLeg.entryMark) * 100 * camp.contracts;
+      openLeg.realizedPnl = (settleMark - openLeg.entryMark) * 100 * camp.contracts;
       camp.status = 'closed';
       camp.exitReason = action.reason;
       camp.netPnl = computeCampaignPnl(camp, null);
@@ -194,6 +208,12 @@
   }
   function scorecard(campaigns) {
     var closed = (campaigns || []).filter(function (c) { return c.status === 'closed'; });
+    // Drawdown is a path statistic: order by close date, not entry order.
+    closed = closed.slice().sort(function (a, b) {
+      var da = (a.legs && a.legs.length && a.legs[a.legs.length - 1].closedOn) || '';
+      var db = (b.legs && b.legs.length && b.legs[b.legs.length - 1].closedOn) || '';
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
     var n = closed.length;
     var pnls = closed.map(function (c) { return c.netPnl; });
     var Rs = closed.map(function (c) { return c.riskBudget ? c.netPnl / c.riskBudget : 0; });
@@ -259,7 +279,9 @@
     var p = expISO.split('-');
     var yy = p[0].slice(2), mm = p[1], dd = p[2];
     var ks = ('00000000' + Math.round(strike * 1000)).slice(-8);
-    return ('' + ticker).toUpperCase() + yy + mm + dd + (type === 'P' ? 'P' : 'C') + ks;
+    // OCC roots drop punctuation: BRK.B options trade under root BRKB
+    var root = ('' + ticker).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return root + yy + mm + dd + (type === 'P' ? 'P' : 'C') + ks;
   }
 
   function dteBetween(todayISO, expISO) {
@@ -392,7 +414,8 @@
     computeATR: computeATR,
     atrLevels: atrLevels,
     liquidityOK: liquidityOK,
-    sizePosition: sizePosition,
+    contractsForBudget: contractsForBudget,
+    nextRollUpLevel: nextRollUpLevel,
     isLastHour: isLastHour,
     pickEntryContract: pickEntryContract,
     pickRollContract: pickRollContract,

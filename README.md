@@ -49,6 +49,25 @@ config it needs `TRADIER_PROXY` + `TRADIER_LIVE_TOKEN` (or `TRADIER_TOKEN`
 [+ `TRADIER_ENV`]). `FMP_KEY` and `ALPACA_KEY` / `ALPACA_SECRET` are only needed
 if you switch a metric's provider to FMP or Alpaca in `config.json`.
 
-Key functions: `computeATR`, `atrLevels`, `sizePosition`, `pickEntryContract`,
-`pickRollContract`, `evaluateExits`, `applyAction`, `computeCampaignPnl`,
-`scorecard`. See the spec sections referenced in the plan for behavior.
+Key functions: `computeATR`, `atrLevels`, `contractsForBudget`,
+`pickEntryContract`, `pickRollContract`, `evaluateExits`, `applyAction`,
+`computeCampaignPnl`, `scorecard`, `rankPremarket`. See the spec sections
+referenced in the plan for behavior.
+
+## Known limitations
+- **Two writers, last-write-wins state.** Both the dashboard (via its GitHub
+  PAT) and the snapshot Action write `positions.json`/`history.json`. The
+  dashboard now detects remote changes and asks you to Pull first, but there is
+  no automatic merge — after the Action commits an exit, Pull before pushing.
+- **Account balance lives in two places.** The Action reads `accountBalance`
+  from the repo's `config.json`; the dashboard reads it from Settings
+  (localStorage). Keep them identical or the equity curve will flip-flop
+  between writers.
+- **Alpaca options provide no open interest**, so with `liquidityMinOI` > 0
+  every contract fails the liquidity gate under the Alpaca provider. Use
+  Tradier (the default) for options.
+- **Secrets in localStorage on a shared origin.** GitHub Pages project sites
+  share the `<user>.github.io` origin, so any script on any of your Pages
+  projects can read this app's stored tokens. Prefer the tradier-proxy
+  scoped-token path over a raw prod token, and treat the PAT as
+  repo-scoped/least-privilege.

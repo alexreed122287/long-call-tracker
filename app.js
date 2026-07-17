@@ -42,7 +42,14 @@
   function fmtMoney(x) { if (x == null || isNaN(x)) return '-'; return (x < 0 ? '-$' : '$') + Math.abs(x).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
   function fmt2(x) { return (x == null || isNaN(x)) ? '-' : (+x).toFixed(2); }
   function signClass(x) { return x > 0 ? 'pos' : (x < 0 ? 'neg' : ''); }
-  function isoToday() { return new Date().toISOString().slice(0, 10); }
+  // Market date, not UTC date: after 8pm ET the UTC calendar has already
+  // rolled over, which would stamp entries/DTE math with tomorrow.
+  function isoToday() { return etNow().dateISO; }
+  function esc(s) {
+    return ('' + (s == null ? '' : s)).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
   function isoMinusDays(iso, n) { return new Date(Date.parse(iso + 'T00:00:00Z') - n * 86400000).toISOString().slice(0, 10); }
   function etNow() {
     var f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -77,20 +84,31 @@
     try {
       setStatus('pulling...');
       var pos = await ghGet('positions.json'); var his = await ghGet('history.json');
-      if (pos && pos.json) setPositions(pos.json);
-      if (his && his.json) setHistory(his.json);
+      if (pos && pos.json) { setPositions(pos.json); lsSet('lct_sha_positions', pos.sha || ''); }
+      if (his && his.json) { setHistory(his.json); lsSet('lct_sha_history', his.sha || ''); }
       render(); setStatus('pulled from repo');
     } catch (e) { setStatus('pull failed: ' + e.message); }
+  }
+  // Push with real optimistic concurrency: reuse the sha we saw at the last
+  // pull/push. Refetching the sha right before the PUT (the old behavior)
+  // always "wins" and silently overwrites snapshot-Action commits.
+  async function pushOne(path, obj, msg) {
+    var key = 'lct_sha_' + path.replace('.json', '');
+    var sha = lsGet(key, '');
+    if (!sha) { var cur = await ghGet(path); sha = (cur && cur.sha) || ''; }
+    var r = await ghPut(path, obj, sha || null, msg);
+    if (r && r.content && r.content.sha) lsSet(key, r.content.sha);
   }
   async function pushState() {
     try {
       setStatus('pushing...');
-      var pos = await ghGet('positions.json');
-      await ghPut('positions.json', getPositions(), pos && pos.sha, 'dashboard: update positions');
-      var his = await ghGet('history.json');
-      await ghPut('history.json', getHistory(), his && his.sha, 'dashboard: update history');
+      await pushOne('positions.json', getPositions(), 'dashboard: update positions');
+      await pushOne('history.json', getHistory(), 'dashboard: update history');
       setStatus('pushed to repo');
-    } catch (e) { setStatus('push failed: ' + e.message); }
+    } catch (e) {
+      var conflict = /409|422/.test(e.message);
+      setStatus(conflict ? 'push conflict — repo changed (snapshot Action?); use Pull from repo, then push' : ('push failed: ' + e.message));
+    }
   }
 
   /* ---------- add trade: option-chain picker ---------- */
@@ -164,7 +182,7 @@
     var override = parseFloat($('t-prem').value);
     var mark = (isFinite(override) && override > 0) ? override : c.mark;
     var budget = cfg.accountBalance * cfg.riskPct;
-    var contracts = Math.max(1, Math.floor(budget / (mark * 100)));
+    var contracts = E.contractsForBudget(budget, mark);
     var totalPremium = mark * 100 * contracts;
     $('t-contracts').textContent = contracts;
     $('select-summary').innerHTML = e.ticker + ' ' + c.strike + 'C ' + exp +
@@ -187,9 +205,10 @@
     if (!picker.entry || !picker.selected) { msg.className = 'err'; msg.textContent = 'pick a contract first'; return; }
     var cfg = getConfig(), e = picker.entry, c = picker.selected.contract, exp = picker.selected.expiration;
     var override = parseFloat($('t-prem').value);
-    var entryMark = isFinite(override) ? override : c.mark;
+    var entryMark = (isFinite(override) && override > 0) ? override : c.mark;
     var budget = cfg.accountBalance * cfg.riskPct;
-    var contracts = Math.max(1, Math.floor(budget / (entryMark * 100)));
+    var contracts = E.contractsForBudget(budget, entryMark);
+    if (!contracts) { msg.className = 'err'; msg.textContent = 'no valid premium — cannot size the position'; return; }
     var camp = {
       id: E.nextCampaignId(getPositions(), e.ticker, e.date),
       ticker: e.ticker, status: 'open', entryDate: e.date, entryTimeCST: $('t-time').value,
@@ -200,8 +219,8 @@
       netPnl: null, exitReason: null
     };
     var positions = getPositions(); positions.push(camp); setPositions(positions);
-    var history = getHistory(); history.events.push({ campaign: camp.id, type: 'open', detail: e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts, ts: e.date }); setHistory(history);
-    msg.textContent = 'Added ' + e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + size.contracts + ' (entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
+    var history = getHistory(); history.events.push({ campaign: camp.id, type: 'open', detail: e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + contracts, ts: e.date }); setHistory(history);
+    msg.textContent = 'Added ' + e.ticker + ' ' + c.strike + 'C ' + exp + ' x' + contracts + ' (entry ' + fmt2(entryMark) + ', risk ' + fmtMoney(budget) + ')';
     $('chain-panel').style.display = 'none'; $('t-ticker').value = ''; picker.selected = null;
     if (gh().pat) pushState();
     render();
@@ -211,7 +230,8 @@
   async function tick() {
     var cfg = getConfig(), p;
     try { p = provider(); } catch (e) { setStatus('set API keys'); return; }
-    var positions = getPositions(), history = getHistory(), now = etNow(), changed = false;
+    var positions = getPositions(), now = etNow(), changed = false;
+    var updatedById = {}, newEvents = [], quoteFailed = false;
     var regime = false;
     try { var spy = await p.getDailyBars('SPY', isoMinusDays(now.dateISO, 90), now.dateISO); regime = E.regimeBearishCross((spy || []).map(function (b) { return b.c; }), 10, 20); } catch (e) {}
     for (var i = 0; i < positions.length; i++) {
@@ -225,19 +245,37 @@
         liveMarks[camp.id] = q.mark; liveStocks[camp.ticker] = sq.price;
         var currentDTE = E.dteBetween(now.dateISO, leg.expiration);
         var last = E.isLastHour(now.minutes, cfg), cands = [];
-        if (last && (currentDTE <= cfg.dteRollTrigger || sq.price >= camp.entryStockPrice + ((camp.rollUpStepsTaken || 0) + 1) * camp.atrAtEntry)) cands = await p.getOptionCandidates(camp.ticker, now.dateISO);
+        if (last && (currentDTE <= cfg.dteRollTrigger || sq.price >= E.nextRollUpLevel(camp, cfg))) cands = await p.getOptionCandidates(camp.ticker, now.dateISO);
         var ctx = { stockPrice: sq.price, etMinutes: now.minutes, spyRegimeCross: regime, currentDTE: currentDTE, currentMark: q.mark, today: now.dateISO, rollCandidates: cands };
         var action = E.evaluateExits(camp, ctx, cfg);
         if (action.type !== 'none') {
           var res = E.applyAction(camp, action, ctx);
-          positions[i] = res.campaign;
-          for (var e = 0; e < res.events.length; e++) history.events.push(res.events[e]);
+          updatedById[camp.id] = res.campaign;
+          for (var e = 0; e < res.events.length; e++) newEvents.push(res.events[e]);
+          // after a roll the cached mark belongs to the OLD leg; carry the
+          // new leg's entry mark so P&L math doesn't mix contracts
+          if (res.campaign.status === 'open') liveMarks[camp.id] = res.campaign.legs[res.campaign.legs.length - 1].entryMark;
+          else delete liveMarks[camp.id];
           changed = true;
         }
-      } catch (err) { setStatus('data error: ' + err.message); }
+      } catch (err) { quoteFailed = true; setStatus('data error: ' + err.message); }
     }
-    appendEquity(positions, history, now.dateISO);
-    setPositions(positions); setHistory(history);
+    // merge against CURRENT storage: the user may have deleted/closed/added
+    // campaigns while the awaits above were in flight
+    var fresh = getPositions();
+    var merged = fresh.map(function (c) {
+      var upd = updatedById[c.id];
+      if (!upd) return c;
+      if (c.status === 'closed' && upd.status === 'open') return c;
+      return upd;
+    });
+    var history = getHistory();
+    newEvents.forEach(function (ev) { history.events.push(ev); });
+    // only stamp today's equity point when every open campaign got a mark —
+    // a partial refresh would overwrite it with a distorted value
+    var missingMark = merged.some(function (c) { return c.status === 'open' && liveMarks[c.id] == null; });
+    if (!quoteFailed && !missingMark) appendEquity(merged, history, now.dateISO);
+    setPositions(merged); setHistory(history);
     if (changed && gh().pat) pushState();
     render();
     setStatus('updated ' + pad(Math.floor(now.minutes / 60)) + ':' + pad(now.minutes % 60) + ' ET');
@@ -258,8 +296,12 @@
     var positions = getPositions(), history = getHistory();
     for (var i = 0; i < positions.length; i++) {
       if (positions[i].id === id && positions[i].status === 'open') {
-        var mark = liveMarks[id];
-        if (mark == null) { try { mark = (await provider().getOptionQuote(E.occSymbol(positions[i].ticker, positions[i].legs[positions[i].legs.length - 1].expiration, 'C', positions[i].legs[positions[i].legs.length - 1].strike))).mark; } catch (e) { setStatus('need a mark to close (refresh first)'); return; } }
+        // fetch a fresh quote: the cached mark can be stale or belong to a
+        // pre-roll leg; fall back to the cache only if the fetch fails
+        var mark = null;
+        var lg = positions[i].legs[positions[i].legs.length - 1];
+        try { mark = (await provider().getOptionQuote(E.occSymbol(positions[i].ticker, lg.expiration, 'C', lg.strike))).mark; } catch (e) { mark = liveMarks[id]; }
+        if (mark == null) { setStatus('need a mark to close (refresh first)'); return; }
         var res = E.applyAction(positions[i], { type: 'close', reason: 'manual' }, { currentMark: mark, today: etNow().dateISO });
         positions[i] = res.campaign; res.events.forEach(function (ev) { history.events.push(ev); });
         setPositions(positions); setHistory(history);
@@ -292,8 +334,10 @@
   }
   async function ensureExpirations(force) {
     var el = $('w-exp'); if (!el) return;
-    if (!force && el.options.length) return;
     var today = isoToday(), cache = getJSON('lct_exps', null);
+    // repopulate when the cached day is stale (long-lived tab crossing
+    // midnight/expiration would otherwise drive target DTE negative)
+    if (!force && el.options.length && cache && cache.day === today) return;
     if (!force && cache && cache.day === today && cache.list && cache.list.length) { populateExpDropdown(cache.list, today); return; }
     var p; try { p = provider(); } catch (e) { return; }
     try {
@@ -319,11 +363,11 @@
     try {
       var res = await provider().searchSymbols(q);
       if (!res.length) { box.innerHTML = '<span class="hint">no matches</span>'; return; }
-      box.innerHTML = res.slice(0, 12).map(function (r) { return '<span class="chip" data-sym="' + r.symbol + '">' + r.symbol + (r.name ? (' &middot; ' + r.name) : '') + '</span>'; }).join('');
+      box.innerHTML = res.slice(0, 12).map(function (r) { return '<span class="chip" data-sym="' + esc(r.symbol) + '">' + esc(r.symbol) + (r.name ? (' &middot; ' + esc(r.name)) : '') + '</span>'; }).join('');
       Array.prototype.forEach.call(box.querySelectorAll('[data-sym]'), function (c) {
         c.onclick = function () { var s = c.getAttribute('data-sym'); var n = addSymbols([s]); $('w-msg').textContent = n ? ('Added ' + s) : (s + ' already on list'); renderWatchlist(); };
       });
-    } catch (e) { box.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    } catch (e) { box.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
   }
   async function refreshWatchlist() {
     var w = getWatchlist();
@@ -334,6 +378,7 @@
     var dte = selectedTargetDte(), today = isoToday();
     for (var i = 0; i < w.length; i++) {
       var it = w[i];
+      delete it.pm; // stale PM BUY badges must not survive an ordinary refresh
       $('w-msg').textContent = 'refreshing ' + it.ticker + ' (' + (i + 1) + '/' + w.length + ')...';
       try {
         var q = await p.getStockQuote(it.ticker);
@@ -380,7 +425,7 @@
     var w = getWatchlist(), tb = $('w-table').querySelector('tbody');
     tb.innerHTML = ''; $('w-empty').style.display = w.length ? 'none' : 'block';
     w.forEach(function (it) {
-      var sug = it.sug ? (it.sug.strike + 'C / ' + fmt2(it.sug.delta) + ' / ' + fmt2(it.sug.mark) + ' / ' + it.sug.exp) : (it.err ? ('<span class="err">' + it.err + '</span>') : '-');
+      var sug = it.sug ? (it.sug.strike + 'C / ' + fmt2(it.sug.delta) + ' / ' + fmt2(it.sug.mark) + ' / ' + esc(it.sug.exp)) : (it.err ? ('<span class="err">' + esc(it.err) + '</span>') : '-');
       var pct = (it.dayPct != null) ? ('<span class="' + signClass(it.dayPct) + '">' + (it.dayPct > 0 ? '+' : '') + it.dayPct.toFixed(2) + '%</span>') : '-';
       if (it.pm && it.pm.gapATR != null) pct += ' <span class="hint">' + (it.pm.gapATR > 0 ? '+' : '') + it.pm.gapATR.toFixed(2) + ' ATR</span>';
       var tr = document.createElement('tr');
@@ -422,7 +467,7 @@
       var expSel = td.querySelector('.ic-exp'), box = td.querySelector('.ic-table');
       expSel.onchange = function () { drawInlineStrikes(ticker, expSel.value, box, price); };
       drawInlineStrikes(ticker, sel, box, price);
-    } catch (e) { td.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    } catch (e) { td.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
   }
   async function drawInlineStrikes(ticker, exp, box, refPrice) {
     box.innerHTML = '<div class="hint">loading ' + exp + '...</div>';
@@ -438,7 +483,7 @@
         return '<tr class="chain-row' + (inBand ? ' in-band' : '') + (liquid ? '' : ' illiquid') + '"><td>' + c.strike + '</td><td>' + fmt2(c.delta) + '</td><td>' + fmt2(c.bid) + '</td><td>' + fmt2(c.ask) + '</td><td>' + fmt2(c.mark) + '</td><td>' + (c.oi || 0) + '</td><td>' + spread + '</td></tr>';
       }).join('');
       box.innerHTML = '<table><thead><tr><th>Strike</th><th>&Delta;</th><th>Bid</th><th>Ask</th><th>Mark</th><th>OI</th><th>Spread</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    } catch (e) { box.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    } catch (e) { box.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
   }
 
   function deleteCampaign(id) {
@@ -469,7 +514,7 @@
       var mark = c.status === 'open' ? liveMarks[c.id] : leg.exitMark;
       var pnl = c.status === 'closed' ? c.netPnl : (mark != null ? E.computeCampaignPnl(c, mark) : null);
       var r = (pnl != null && c.riskBudget) ? pnl / c.riskBudget : null;
-      var nextUp = c.entryStockPrice + ((c.rollUpStepsTaken || 0) + 1) * c.atrAtEntry;
+      var nextUp = E.nextRollUpLevel(c, getConfig());
       var dte = E.dteBetween(today, leg.expiration);
       var tr = document.createElement('tr');
       tr.innerHTML =
@@ -617,7 +662,7 @@
     render();
     ensureExpirations(false);
     // open-tab tracking: poll every 90s when keys are configured
-    setInterval(function () { if (secrets().fmpKey || secrets().tradierLiveToken || secrets().alpacaKey) tick(); }, 90000);
+    setInterval(function () { var s = secrets(); if (s.fmpKey || s.tradierLiveToken || s.tradierToken || s.tradierProxy || s.alpacaKey) tick(); }, 90000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

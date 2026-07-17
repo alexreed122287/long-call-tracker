@@ -23,6 +23,13 @@ function runSnapshot(state) {
   if (!history.equity) history.equity = [];
   var logs = [];
 
+  // Nothing open: skip all provider calls and leave history untouched, so the
+  // Action neither fails on a pointless SPY fetch nor commits a flat equity
+  // point every day.
+  if (!positions.some(function (c) { return c.status === 'open'; })) {
+    return Promise.resolve({ positions: positions, history: history, regimeCross: false, logs: ['no open campaigns; skipped'] });
+  }
+
   var spyFrom = isoMinusDays(nowET.dateISO, 90);
 
   return provider.getDailyBars('SPY', spyFrom, nowET.dateISO).then(function (spyBars) {
@@ -30,6 +37,7 @@ function runSnapshot(state) {
 
     var updated = [];
     var marks = {};
+    var anyQuoteFailed = false;
     var lastHour = E.isLastHour(nowET.minutes, cfg);
 
     // Process campaigns sequentially so the (stubbed or live) provider calls are ordered.
@@ -53,7 +61,7 @@ function runSnapshot(state) {
             marks[camp.id] = q.mark;
             var needCandidates = lastHour &&
               (ctxBase.currentDTE <= cfg.dteRollTrigger ||
-                ctxBase.stockPrice >= camp.entryStockPrice + ((camp.rollUpStepsTaken || 0) + 1) * camp.atrAtEntry);
+                ctxBase.stockPrice >= E.nextRollUpLevel(camp, cfg));
             var candP = needCandidates ? fetchRollCandidates(provider, camp.ticker, nowET.dateISO) : Promise.resolve([]);
             return candP.then(function (cands) {
               ctxBase.rollCandidates = cands || [];
@@ -63,9 +71,17 @@ function runSnapshot(state) {
               updated.push(res.campaign);
               for (var i = 0; i < res.events.length; i++) history.events.push(res.events[i]);
               if (res.campaign.status === 'closed') delete marks[res.campaign.id];
+              // after a roll, the fetched mark belongs to the OLD leg; use the
+              // new leg's entry mark or the equity point books phantom P&L
+              else if (action.type === 'roll') marks[res.campaign.id] = res.campaign.legs[res.campaign.legs.length - 1].entryMark;
               logs.push(camp.ticker + ': ' + action.type + (action.reason ? (' ' + action.reason) : ''));
             });
           });
+        }).catch(function (e) {
+          // one bad symbol must not abort exits for every other position
+          anyQuoteFailed = true;
+          updated.push(camp);
+          logs.push(camp.ticker + ': skipped (' + (e && e.message) + ')');
         });
       });
     });
@@ -76,9 +92,14 @@ function runSnapshot(state) {
         if (c.status === 'closed') realized += (c.netPnl || 0);
         else if (marks[c.id] != null) unrealized += E.computeCampaignPnl(c, marks[c.id]);
       });
-      var equity = (cfg.accountBalance || 0) + realized + unrealized;
-      history.equity = history.equity.filter(function (p) { return p.date !== nowET.dateISO; });
-      history.equity.push({ date: nowET.dateISO, realized: realized, unrealized: unrealized, equity: equity });
+      var openMissing = updated.some(function (c) { return c.status === 'open' && marks[c.id] == null; });
+      // only stamp today's equity when the picture is complete — a partial
+      // set of marks would overwrite the point with a distorted value
+      if (!anyQuoteFailed && !openMissing) {
+        var equity = (cfg.accountBalance || 0) + realized + unrealized;
+        history.equity = history.equity.filter(function (p) { return p.date !== nowET.dateISO; });
+        history.equity.push({ date: nowET.dateISO, realized: realized, unrealized: unrealized, equity: equity });
+      }
       return { positions: updated, history: history, regimeCross: regimeCross, logs: logs };
     });
   });
@@ -110,7 +131,15 @@ function main() {
     alpacaSecret: process.env.ALPACA_SECRET
   };
   var provider = DP.createProvider(cfg, secrets);
-  runSnapshot({ cfg: cfg, positions: positions, history: history, provider: provider, nowET: etNow() })
+  // The fixed UTC crons straddle DST into pre-market (EST) / after-hours
+  // (EDT). Guard on actual ET time so exit rules only run during the regular
+  // session (small buffer around 9:30-16:00 ET).
+  var now = etNow();
+  if (now.minutes < 9 * 60 + 25 || now.minutes > 16 * 60 + 5) {
+    console.log('outside regular session (' + now.minutes + ' ET minutes); skipping');
+    return;
+  }
+  runSnapshot({ cfg: cfg, positions: positions, history: history, provider: provider, nowET: now })
     .then(function (out) {
       fs.writeFileSync('./positions.json', JSON.stringify(out.positions, null, 2) + '\n');
       fs.writeFileSync('./history.json', JSON.stringify(out.history, null, 2) + '\n');

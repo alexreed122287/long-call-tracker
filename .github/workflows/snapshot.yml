@@ -1,9 +1,11 @@
 name: snapshot
 
-# Two-tier cron (UTC). ET last hour 15:00-16:00 = 19:00-20:00 UTC (EDT) / 20:00-21:00 UTC (EST).
+# Two-tier cron (UTC), deliberately wider than the ET session because UTC
+# crons cannot track DST; snapshot.js itself skips runs outside ~9:25-16:05 ET.
+# ET last hour 15:00-16:00 = 19:00-20:00 UTC (EDT) / 20:00-21:00 UTC (EST).
 on:
   schedule:
-    - cron: '*/30 13-21 * * 1-5'   # intraday emergency sweep across market hours
+    - cron: '*/30 13-21 * * 1-5'   # intraday emergency sweep (over-wide; guarded in-script)
     - cron: '*/5 19-21 * * 1-5'    # dense last-hour pass (rolls / stop / regime)
   workflow_dispatch: {}
 
@@ -28,6 +30,7 @@ jobs:
           TRADIER_PROXY: ${{ secrets.TRADIER_PROXY }}
           TRADIER_LIVE_TOKEN: ${{ secrets.TRADIER_LIVE_TOKEN }}
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: ${{ secrets.TRADIER_ENV }}
           ALPACA_KEY: ${{ secrets.ALPACA_KEY }}
           ALPACA_SECRET: ${{ secrets.ALPACA_SECRET }}
         run: node snapshot.js
@@ -40,5 +43,6 @@ jobs:
             echo "no changes"
           else
             git commit -m "snapshot: update tracking state"
+            git pull --rebase origin main
             git push
           fi
